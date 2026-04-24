@@ -174,22 +174,90 @@ def ga4_snippet(measurement_id: Optional[str] = None) -> str:
     )
 
 
-def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: str) -> None:
+_CATEGORY_APP_TYPE = {
+    'legal': 'LegalService', 'benefits': 'GovernmentService',
+    'civic': 'GovernmentService', 'housing': 'RealEstateAgent',
+    'healthcare': 'MedicalWebPage', 'education': 'EducationalOrganization',
+    'newcomer': 'GovernmentService', 'financial': 'FinancialService',
+    'business': 'ProfessionalService', 'flagship': 'WebApplication',
+}
+
+
+def og_snippet(brand: str, primary_url: str, description: str = '') -> str:
+    """Open Graph + Twitter card tags. Picked up by Slack, Twitter, FB, LinkedIn
+    link unfurls. Uses the hub's default og-image.png so every app gets a
+    consistent social preview without needing per-app image assets."""
+    desc = description or f'Part of the Fresh Sky AI portfolio — AI tools built under the HULEC rule.'
+    url = primary_url.rstrip('/')
+    return (
+        f'<meta property="og:title" content="{brand}">\n'
+        f'<meta property="og:description" content="{desc}">\n'
+        f'<meta property="og:url" content="{url}">\n'
+        f'<meta property="og:type" content="website">\n'
+        f'<meta property="og:site_name" content="Fresh Sky AI">\n'
+        f'<meta property="og:image" content="https://freshskyai.com/og-image.png">\n'
+        f'<meta name="twitter:card" content="summary_large_image">\n'
+        f'<meta name="twitter:title" content="{brand}">\n'
+        f'<meta name="twitter:description" content="{desc}">\n'
+        f'<meta name="twitter:image" content="https://freshskyai.com/og-image.png">\n'
+    )
+
+
+def schema_snippet(brand: str, primary_url: str, category: str, description: str = '') -> str:
+    """JSON-LD structured data (schema.org). Tells Google this is a
+    WebApplication / legal service / etc., improves rich-result eligibility."""
+    import json as _json
+    app_type = _CATEGORY_APP_TYPE.get(category, 'WebApplication')
+    data = {
+        '@context': 'https://schema.org',
+        '@type': app_type,
+        'name': brand,
+        'url': primary_url.rstrip('/'),
+        'description': description or f'AI tool in the Fresh Sky AI portfolio, built under the HULEC rule.',
+        'provider': {
+            '@type': 'Organization',
+            'name': 'Fresh Sky LLC',
+            'url': 'https://www.freshskyai.com',
+        },
+        'inLanguage': ['en', 'es', 'zh', 'ar', 'vi', 'tl', 'ko', 'ru', 'pt', 'hi', 'fr', 'tr'],
+    }
+    if app_type == 'WebApplication':
+        data['applicationCategory'] = 'Utilities'
+        data['operatingSystem'] = 'Web'
+        data['offers'] = {'@type': 'Offer', 'price': '0', 'priceCurrency': 'USD'}
+    return f'<script type="application/ld+json">{_json.dumps(data, separators=(",", ":"))}</script>\n'
+
+
+def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: str,
+            description: str = '') -> None:
     """One-call setup: registers SEO + revenue routes for an app. Apps just call:
 
         from freshsky_common.revenue import install
-        install(app, slug='myapp', brand='My App', primary_url='https://myapp.com/', category='legal')
+        install(app, slug='myapp', brand='My App',
+                primary_url='https://myapp.com/', category='legal',
+                description='One-line what the tool does')
 
-    Also registers a Jinja context processor so templates can render the GA4
-    snippet via {{ ga4_snippet|safe }} in <head>. If GA4_MEASUREMENT_ID is
-    unset (dev / pre-launch), ga4_snippet expands to an empty string and
-    nothing ships.
+    Also registers a Jinja context processor so templates can render:
+      {{ ga4_snippet|safe }}   -- GA4 tag (active when GA_MEASUREMENT_ID set)
+      {{ og_tags|safe }}       -- Open Graph + Twitter card
+      {{ schema_json|safe }}   -- schema.org JSON-LD
+
+    `description` is optional; when provided it's used in OG + schema.org.
     """
     if category not in CATEGORIES:
         raise ValueError(f'unknown category {category!r}; allowed: {sorted(CATEGORIES)}')
     register_seo_routes(app, slug=slug, brand=brand, primary_url=primary_url)
     register_revenue_routes(app, category)
 
+    og = og_snippet(brand, primary_url, description)
+    schema = schema_snippet(brand, primary_url, category, description)
+
     @app.context_processor
     def _inject_analytics():
-        return {'ga4_snippet': ga4_snippet(), 'app_slug': slug, 'app_brand': brand}
+        return {
+            'ga4_snippet': ga4_snippet(),
+            'og_tags': og,
+            'schema_json': schema,
+            'app_slug': slug,
+            'app_brand': brand,
+        }
