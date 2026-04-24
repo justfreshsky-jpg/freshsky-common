@@ -171,8 +171,17 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
 
         from freshsky_common.revenue import install
         install(app, slug='myapp', brand='My App', primary_url='https://myapp.com/', category='legal')
+
+    Also registers a Jinja context processor so templates can render the GA4
+    snippet via {{ ga4_snippet|safe }} in <head>. If GA4_MEASUREMENT_ID is
+    unset (dev / pre-launch), ga4_snippet expands to an empty string and
+    nothing ships.
     """
     if category not in CATEGORIES:
         raise ValueError(f'unknown category {category!r}; allowed: {sorted(CATEGORIES)}')
     register_seo_routes(app, slug=slug, brand=brand, primary_url=primary_url)
     register_revenue_routes(app, category)
+
+    @app.context_processor
+    def _inject_analytics():
+        return {'ga4_snippet': ga4_snippet(), 'app_slug': slug, 'app_brand': brand}
