@@ -153,10 +153,18 @@ def register_revenue_routes(app: Flask, category: str) -> None:
 
 
 def ga4_snippet(measurement_id: Optional[str] = None) -> str:
-    """Returns the GA4 HTML snippet ready to inject into <head>. If no
-    measurement_id given, reads GA4_MEASUREMENT_ID env var. Returns '' when
-    not configured (dev / no analytics)."""
-    mid = measurement_id or os.environ.get('GA4_MEASUREMENT_ID', '').strip()
+    """Returns the GA4 HTML snippet ready to inject into <head>.
+
+    Reads `GA_MEASUREMENT_ID` first (matches the convention the foundation
+    apps freshskyai/EduSafeAI/USALivingGuide/teachercerts already use) and
+    falls back to `GA4_MEASUREMENT_ID`. Returns '' when neither is set so
+    dev/pre-launch deploys are silent.
+    """
+    mid = (
+        measurement_id
+        or os.environ.get('GA_MEASUREMENT_ID', '').strip()
+        or os.environ.get('GA4_MEASUREMENT_ID', '').strip()
+    )
     if not mid:
         return ''
     return (
