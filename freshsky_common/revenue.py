@@ -183,6 +183,87 @@ _CATEGORY_APP_TYPE = {
 }
 
 
+# ─── PORTFOLIO MAP — used by cross_promo for in-portfolio cross-linking ────
+# Update when a new batch app launches or an existing one retires/renames.
+PORTFOLIO = [
+    {'slug': 'eslparentadvocate',   'brand': 'ESL Parent Advocate',   'url': 'https://esl.freshskyai.com/',          'category': 'education'},
+    {'slug': 'multistatetax',       'brand': 'Multi-State Tax',       'url': 'https://tax.freshskyai.com/',          'category': 'civic'},
+    {'slug': 'smallclaimsus',       'brand': 'Small Claims US',       'url': 'https://claims.freshskyai.com/',       'category': 'legal'},
+    {'slug': 'govformhelper',       'brand': 'Gov Form Helper',       'url': 'https://forms.freshskyai.com/',        'category': 'newcomer'},
+    {'slug': 'medicaidcheck',       'brand': 'Medicaid Check',        'url': 'https://medicaid.freshskyai.com/',     'category': 'healthcare'},
+    {'slug': 'statemoverai',        'brand': 'State Mover AI',        'url': 'https://mover.freshskyai.com/',        'category': 'civic'},
+    {'slug': 'hoadisputehelp',      'brand': 'HOA Dispute Help',      'url': 'https://hoa.freshskyai.com/',          'category': 'legal'},
+    {'slug': 'resumebridgeus',      'brand': 'Resume Bridge US',      'url': 'https://resume.freshskyai.com/',       'category': 'newcomer'},
+    {'slug': 'foiahelper',          'brand': 'FOIA Helper',           'url': 'https://foia.freshskyai.com/',         'category': 'legal'},
+    {'slug': 'snapcheck',           'brand': 'SNAP Check',            'url': 'https://snap.freshskyai.com/',         'category': 'benefits'},
+    {'slug': 'unemploymentappeal',  'brand': 'Unemployment Appeal',   'url': 'https://unemploy.freshskyai.com/',     'category': 'benefits'},
+    {'slug': 'uscistimeline',       'brand': 'USCIS Timeline',        'url': 'https://uscis.freshskyai.com/',        'category': 'newcomer'},
+    {'slug': 'legalaidfinder',      'brand': 'Legal Aid Finder',      'url': 'https://legalaid.freshskyai.com/',     'category': 'legal'},
+    {'slug': 'wageclaimai',         'brand': 'Wage Claim AI',         'url': 'https://wages.freshskyai.com/',        'category': 'legal'},
+    {'slug': 'section8nav',         'brand': 'Section 8 Nav',         'url': 'https://section8.freshskyai.com/',     'category': 'housing'},
+    {'slug': 'adarequester',        'brand': 'ADA Requester',         'url': 'https://ada.freshskyai.com/',          'category': 'legal'},
+    {'slug': 'reentryhelp',         'brand': 'Reentry Help',          'url': 'https://reentry.freshskyai.com/',      'category': 'benefits'},
+    {'slug': 'voterregai',          'brand': 'Voter Reg AI',          'url': 'https://vote.freshskyai.com/',         'category': 'civic'},
+    {'slug': 'specialedai',         'brand': 'Special Ed AI',         'url': 'https://iep.freshskyai.com/',          'category': 'education'},
+    {'slug': 'rxsavingsai',         'brand': 'Rx Savings AI',         'url': 'https://rx.freshskyai.com/',           'category': 'healthcare'},
+    {'slug': 'veteransai',          'brand': 'Veterans AI',           'url': 'https://vets.freshskyai.com/',         'category': 'benefits'},
+    {'slug': 'evictiondefense',     'brand': 'Eviction Defense',      'url': 'https://eviction.freshskyai.com/',     'category': 'legal'},
+    {'slug': 'seniorcareai',        'brand': 'Senior Care AI',        'url': 'https://medicare.freshskyai.com/',     'category': 'healthcare'},
+    {'slug': 'solarevincentives',   'brand': 'Solar + EV Incentives', 'url': 'https://solar.freshskyai.com/',        'category': 'business'},
+    {'slug': 'safetyplanai',        'brand': 'Safety Plan AI',        'url': 'https://safety.freshskyai.com/',       'category': 'legal'},
+    {'slug': 'mentalhealthfinder',  'brand': 'Mental Health Finder',  'url': 'https://mental.freshskyai.com/',       'category': 'healthcare'},
+    {'slug': 'studentdebtai',       'brand': 'Student Debt AI',       'url': 'https://studentloan.freshskyai.com/',  'category': 'financial'},
+    {'slug': 'estateplanai',        'brand': 'Estate Plan AI',        'url': 'https://estate.freshskyai.com/',       'category': 'legal'},
+    {'slug': 'naturalizeprep',      'brand': 'Naturalize Prep',       'url': 'https://naturalize.freshskyai.com/',   'category': 'newcomer'},
+    {'slug': 'childcarefinder',     'brand': 'Childcare Finder',      'url': 'https://childcare.freshskyai.com/',    'category': 'benefits'},
+    {'slug': 'backgroundcheckhelp', 'brand': 'Background Check Help', 'url': 'https://background.freshskyai.com/',   'category': 'legal'},
+    {'slug': 'foodforfamilies',     'brand': 'Food For Families',     'url': 'https://food.freshskyai.com/',         'category': 'benefits'},
+]
+
+# When the current app's category has fewer than 3 other apps, fall back to
+# the most-related neighbor category for cross-promo.
+_SIBLING_CATEGORY = {
+    'housing': 'benefits', 'business': 'financial', 'financial': 'benefits',
+    'education': 'newcomer', 'civic': 'newcomer',
+}
+
+
+def cross_promo_html(current_slug: str, current_category: str, count: int = 3) -> str:
+    """Render an HTML snippet recommending up to `count` related apps from
+    the same HULEC category. Excludes the current app. If the category has
+    too few peers, falls back to a sibling category. Returns '' if nothing
+    sensible to recommend (e.g. unknown slug)."""
+    same = [p for p in PORTFOLIO if p['category'] == current_category and p['slug'] != current_slug]
+    if len(same) < count:
+        sibling = _SIBLING_CATEGORY.get(current_category)
+        if sibling:
+            same += [p for p in PORTFOLIO if p['category'] == sibling and p['slug'] != current_slug and p not in same]
+    picks = same[:count]
+    if not picks:
+        return ''
+
+    cards = []
+    for p in picks:
+        cards.append(
+            f'<a href="{p["url"]}" target="_blank" rel="noopener" '
+            f'style="display:block;padding:12px 14px;border:1px solid #e2e8f0;border-radius:10px;'
+            f'background:#fff;text-decoration:none;color:#1e293b;transition:border-color .15s">'
+            f'<div style="font-weight:600;font-size:14px;margin-bottom:2px">{p["brand"]}</div>'
+            f'<div style="color:#64748b;font-size:12px">{p["url"].replace("https://","").rstrip("/")}</div>'
+            f'</a>'
+        )
+    return (
+        '<section style="max-width:720px;margin:32px auto 16px;padding:0 16px">'
+        '<h3 style="font-size:13px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;text-align:center">'
+        'Other Fresh Sky AI tools you might need'
+        '</h3>'
+        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">'
+        + ''.join(cards) +
+        '</div>'
+        '</section>'
+    )
+
+
 def og_snippet(brand: str, primary_url: str, description: str = '') -> str:
     """Open Graph + Twitter card tags. Picked up by Slack, Twitter, FB, LinkedIn
     link unfurls. Uses the hub's default og-image.png so every app gets a
@@ -249,8 +330,15 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
     register_seo_routes(app, slug=slug, brand=brand, primary_url=primary_url)
     register_revenue_routes(app, category)
 
+    # Privacy + Terms: auto-registered with shared boilerplate. Apps can
+    # override by declaring their own /privacy or /terms route before
+    # calling install() — register_legal_routes is idempotent.
+    from .legal import register_legal_routes
+    register_legal_routes(app, brand=brand, primary_url=primary_url)
+
     og = og_snippet(brand, primary_url, description)
     schema = schema_snippet(brand, primary_url, category, description)
+    cross_promo = cross_promo_html(slug, category)
 
     @app.context_processor
     def _inject_analytics():
@@ -258,6 +346,7 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
             'ga4_snippet': ga4_snippet(),
             'og_tags': og,
             'schema_json': schema,
+            'cross_promo': cross_promo,
             'app_slug': slug,
             'app_brand': brand,
         }
