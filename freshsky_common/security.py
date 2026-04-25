@@ -11,11 +11,19 @@ from flask import request
 
 DEFAULT_CSP = (
     "default-src 'self'; "
-    "script-src 'self' https://cdnjs.cloudflare.com; "
+    # 'unsafe-inline' is needed because every batch app's button click handlers
+    # live in inline <script> blocks in templates/index.html. Without it the
+    # buttons silently fail. The trade-off is a small XSS-risk loss; acceptable
+    # because these apps never render unsanitized user-supplied HTML.
+    # googletagmanager.com is the GA4 loader; google-analytics.com is the
+    # collection endpoint that gtag.js fetches.
+    "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com "
+    "https://www.googletagmanager.com https://www.google-analytics.com; "
     "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
     "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
     "img-src 'self' data: https:; "
-    "connect-src 'self'; "
+    # connect-src needs google-analytics so gtag.js can POST events.
+    "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com; "
     "frame-ancestors 'none'; "
     "object-src 'none'; "
     "base-uri 'self'; "
