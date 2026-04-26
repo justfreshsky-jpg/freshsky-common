@@ -228,6 +228,33 @@ _SIBLING_CATEGORY = {
 }
 
 
+def trust_line_html(category: str) -> str:
+    """One-line credibility blurb shown in the footer of every app.
+
+    Generic about the builder (no name, no employer); slightly tailored
+    by category to lead with the most relevant credential. Verifiable in
+    spirit — every claim is real (active U.S. K-12 educator, licensed
+    attorney with doctorate in law, Google for Education Certified
+    Trainer)."""
+    if category in ('education', 'flagship'):
+        # Lead with educator credential
+        body = ('Built by an active U.S. K-12 educator and Google for Education Certified Trainer '
+                '(also a licensed attorney with a doctorate in law).')
+    elif category == 'legal':
+        # Lead with legal credential
+        body = ('Built by a licensed attorney with a doctorate in law '
+                '(also an active U.S. K-12 educator and Google for Education Certified Trainer).')
+    else:
+        # General phrasing for benefits/civic/healthcare/housing/financial/business/newcomer
+        body = ('Built by a U.S. educator who is also a licensed attorney with a doctorate in law '
+                'and Google for Education Certified Trainer credentials.')
+    return (
+        '<p style="text-align:center;color:#94a3b8;font-size:11.5px;'
+        'padding:0 24px 4px;max-width:680px;margin:0 auto;line-height:1.6;">'
+        f'{body}</p>'
+    )
+
+
 def cross_promo_html(current_slug: str, current_category: str, count: int = 3) -> str:
     """Render an HTML snippet recommending up to `count` related apps from
     the same HULEC category. Excludes the current app. If the category has
@@ -339,6 +366,7 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
     og = og_snippet(brand, primary_url, description)
     schema = schema_snippet(brand, primary_url, category, description)
     cross_promo = cross_promo_html(slug, category)
+    trust_line = trust_line_html(category)
 
     @app.context_processor
     def _inject_analytics():
@@ -347,6 +375,7 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
             'og_tags': og,
             'schema_json': schema,
             'cross_promo': cross_promo,
+            'trust_line': trust_line,
             'app_slug': slug,
             'app_brand': brand,
         }
