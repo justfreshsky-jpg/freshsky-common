@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "freshsky-common"
-version = "0.2.0"
+version = "0.3.0"
 description = "Shared infrastructure (LLM chain, security, caching, rate limiting, metrics) for Fresh Sky LLC apps."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,6 +13,7 @@ license = {text = "Proprietary"}
 dependencies = [
     "flask>=2.3",
     "requests>=2.31",
+    "stripe>=7.0",
 ]
 
 [project.optional-dependencies]
@@ -20,3 +21,6 @@ dev = ["pytest>=7", "pytest-cov"]
 
 [tool.setuptools.packages.find]
 include = ["freshsky_common*"]
+
+[tool.setuptools.package-data]
+"freshsky_common.static" = ["*.js", "*.css", "*.html"]
