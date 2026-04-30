@@ -19,8 +19,8 @@
 
   var STATE = { is_pro: false, usage_today: 0, daily_limit: 10,
                 stripe_enabled: false, logged_in: false,
-                google_auth_enabled: false, pro_monthly_dollars: '$3.99',
-                pro_yearly_dollars: '$29' };
+                google_auth_enabled: false, pro_monthly_dollars: '$1.99',
+                pro_yearly_dollars: '$19' };
 
   function refresh() {
     return fetch('/api/user-status').then(function(r) { return r.json(); })

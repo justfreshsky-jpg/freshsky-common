@@ -71,8 +71,8 @@ def register_freemium(
     primary_url: str = '',
     owner_email: str = '',
     pro_pricing_label: str = 'Pro',
-    pro_monthly_dollars: str = '$3.99',
-    pro_yearly_dollars: str = '$29',
+    pro_monthly_dollars: str = '$1.99',
+    pro_yearly_dollars: str = '$19',
 ) -> Callable[[], Optional[Response]]:
     """Wire freemium routes onto ``app`` and return the gate function.
 
