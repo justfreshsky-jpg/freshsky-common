@@ -50,7 +50,7 @@
     var info, actions = '';
     if (STATE.logged_in) {
       info = STATE.is_pro
-        ? '⭐ ' + escapeHtml(STATE.pro_pricing_label || 'Pro')
+        ? '⭐ ' + escapeHtml(STATE.pro_pricing_label || 'Pro') + ' — all Fresh Sky AI tools'
         : '✨ Free (' + STATE.usage_today + '/' + STATE.daily_limit + ' today)';
       actions = STATE.is_pro
         ? '<a href="/billing" style="color:#6366f1;text-decoration:none;font-weight:500">Manage</a>'
@@ -77,16 +77,21 @@
   window.handleFreemiumResponse = function(response, outputElement) {
     if (response.status === 429) {
       var html = '<div style="text-align:center;padding:24px">' +
-        '<p style="font-size:16px;margin-bottom:8px">⚡ Daily free limit reached</p>' +
-        '<p style="color:#64748b;margin-bottom:16px">Upgrade for unlimited access — or come back tomorrow.</p>';
+        '<p style="font-size:18px;font-weight:600;margin-bottom:8px">⚡ Daily free limit reached</p>' +
+        '<p style="color:#475569;margin-bottom:6px;font-size:15px">' +
+          '<strong>One Pro subscription = unlimited access on every Fresh Sky AI tool.</strong>' +
+        '</p>' +
+        '<p style="color:#64748b;margin-bottom:16px;font-size:13px">' +
+          '32+ apps for civic, legal, healthcare, immigration, and benefits — covered by the same plan.' +
+        '</p>';
       if (STATE.stripe_enabled) {
         html += '<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">' +
           '<a href="/subscribe" style="display:inline-block;background:#6366f1;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">' +
             (STATE.pro_pricing_label || 'Pro') + ' — ' + STATE.pro_monthly_dollars + '/mo</a>' +
           '<a href="/subscribe/yearly" style="display:inline-block;background:#059669;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">' +
-            'Yearly — ' + STATE.pro_yearly_dollars + '/yr</a>' +
+            'Yearly — ' + STATE.pro_yearly_dollars + '/yr <span style="opacity:.85;font-size:12px">(save ~20%)</span></a>' +
           '</div>' +
-          '<p style="margin-top:16px;color:#94a3b8;font-size:12px">Upgrade requires a free Google sign-in first.</p>';
+          '<p style="margin-top:14px;color:#94a3b8;font-size:12px">Cancel anytime. Free Google sign-in first.</p>';
       } else {
         html += '<p style="color:#94a3b8;font-size:12px">Try again tomorrow — paid plan not yet enabled.</p>';
       }
