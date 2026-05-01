@@ -8,12 +8,12 @@ Pip-installable from git (`freshsky-common @ git+https://github.com/justfreshsky
 - **`llm.py`** — unified 5-provider fallback chain (Groq → Cerebras → Gemini → Mistral → OpenRouter → HuggingFace). Reads keys from env.
 - **`caching.py`** — memoization helpers for prompt + response caching.
 - **`metrics.py`** — thread-safe in-memory counters (per-app, non-persistent).
-- **`revenue.py`** — SEO (robots, sitemap, humans), affiliate cards, GA4 + OG + schema.org context processor, category-gated for HULEC.
+- **`revenue.py`** — SEO (robots, sitemap, humans), GA4 + OG + schema.org + FAQ schema context processor, plus cross-promo + trust-line helpers, category-gated for HULEC.
 
 ## `revenue.install(app, slug, brand, primary_url, category, description='')`
 One-call app wiring. Registers:
 - SEO routes (`/robots.txt`, `/sitemap.xml`, `/humans.txt`)
-- Revenue routes (`/api/affiliates`)
+- Privacy + Terms routes (boilerplate via `legal.py`)
 - Jinja context processor injecting into every `render_template`:
   - `{{ ga4_snippet|safe }}` — GA4 tag (activates when `GA_MEASUREMENT_ID` env var set)
   - `{{ og_tags|safe }}` — Open Graph + Twitter card
