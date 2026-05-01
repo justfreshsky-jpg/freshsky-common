@@ -256,8 +256,17 @@ def register_freemium(
             )
         except Exception:
             return 'Invalid signature', 400
-        etype = event.get('type', '')
-        obj = event.get('data', {}).get('object', {}) or {}
+        # stripe.Webhook.construct_event returns a StripeObject (not a
+        # dict). Its attribute-access semantics treat `.get` as a field
+        # lookup and raise AttributeError. .to_dict() recursively coerces
+        # to plain Python types so the rest of this handler can use the
+        # familiar .get() / dict idioms.
+        try:
+            event_d = event.to_dict() if hasattr(event, 'to_dict') else dict(event)
+            etype = event_d.get('type', '')
+            obj = event_d.get('data', {}).get('object', {}) or {}
+        except Exception:
+            etype, obj = '', {}
         logger.info('freemium webhook: %s', etype)
         # Persist Pro state to Firestore so signed-in users see the flip
         # immediately on next /api/user-status poll without re-login.
