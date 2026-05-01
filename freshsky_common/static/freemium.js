@@ -116,8 +116,52 @@
       } else {
         html += '<p style="color:#94a3b8;font-size:12px">Try again tomorrow — paid plan not yet enabled.</p>';
       }
+      // Email capture for users who don't upgrade today
+      html += '<form id="fs-notify-form" style="margin-top:24px;padding-top:18px;border-top:1px solid #e2e8f0;display:flex;flex-direction:column;gap:8px;align-items:center">' +
+        '<label style="font-size:12px;color:#64748b;font-weight:500">Want updates on new tools?</label>' +
+        '<div style="display:flex;gap:6px;width:100%;max-width:340px">' +
+          '<input type="email" name="email" required placeholder="you@example.com" style="flex:1;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px" />' +
+          '<button type="submit" style="background:#475569;color:#fff;border:none;padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500">Notify me</button>' +
+        '</div>' +
+        '<span id="fs-notify-status" style="font-size:11px;color:#94a3b8;min-height:14px"></span>' +
+      '</form>';
       html += '</div>';
       if (outputElement) outputElement.innerHTML = html;
+      // Wire the email capture form
+      var form = (outputElement || document).querySelector('#fs-notify-form');
+      if (form) {
+        form.addEventListener('submit', function(ev) {
+          ev.preventDefault();
+          var emailInput = form.querySelector('input[name="email"]');
+          var status = form.querySelector('#fs-notify-status');
+          var email = (emailInput.value || '').trim();
+          if (!email || email.indexOf('@') === -1) {
+            status.textContent = 'Please enter a valid email.';
+            status.style.color = '#dc2626';
+            return;
+          }
+          status.textContent = 'Saving…';
+          status.style.color = '#94a3b8';
+          fetch('/api/notify', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({email: email, source: window.location.host})
+          }).then(function(r) {
+            if (r.ok) {
+              status.textContent = '✓ Saved. We\'ll be in touch.';
+              status.style.color = '#059669';
+              emailInput.disabled = true;
+              track('email_captured', { source: window.location.host });
+            } else {
+              status.textContent = 'Save failed — try again later.';
+              status.style.color = '#dc2626';
+            }
+          }).catch(function() {
+            status.textContent = 'Network error — try again later.';
+            status.style.color = '#dc2626';
+          });
+        });
+      }
       // Refresh user bar to update counter
       refresh();
       return true; // handled

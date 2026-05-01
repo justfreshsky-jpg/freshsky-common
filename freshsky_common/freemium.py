@@ -259,13 +259,58 @@ def register_freemium(
         etype = event.get('type', '')
         obj = event.get('data', {}).get('object', {}) or {}
         logger.info('freemium webhook: %s', etype)
-        # We don't keep a persistent customer DB at the app level; instead
-        # the next time the customer signs in, _check_stripe_subscription
-        # will hit the live Stripe API and set session['is_pro'] correctly.
-        # This keeps the gate consistent without needing a DB write here.
-        # For users currently signed in we have no server-side push, but
-        # subsequent /api/user-status polls will refresh.
+        # Persist Pro state to Firestore so signed-in users see the flip
+        # immediately on next /api/user-status poll without re-login.
+        # Best-effort: webhook returns 200 even if Firestore write fails
+        # (Stripe will resend on 5xx; we don't want to block the receipt).
+        try:
+            email = ''
+            # checkout.session.completed → customer_email + customer
+            # customer.subscription.{created,updated,deleted} → customer
+            customer_id = obj.get('customer') or ''
+            email = (obj.get('customer_email') or
+                     obj.get('customer_details', {}).get('email') or '')
+            if not email and customer_id:
+                # Look up the customer to get its email
+                cust = stripe.Customer.retrieve(customer_id)
+                email = cust.get('email', '') or ''
+            if email:
+                if etype in ('checkout.session.completed',
+                             'customer.subscription.created',
+                             'customer.subscription.updated'):
+                    # Decide is_pro based on subscription status (if present)
+                    sub_status = obj.get('status') or ''
+                    if sub_status in ('active', 'trialing'):
+                        _persist_pro_state(email.lower(), True)
+                    elif sub_status in ('canceled', 'unpaid', 'incomplete_expired'):
+                        _persist_pro_state(email.lower(), False)
+                    else:
+                        # checkout.session.completed has no status field — treat as active
+                        if etype == 'checkout.session.completed':
+                            _persist_pro_state(email.lower(), True)
+                elif etype == 'customer.subscription.deleted':
+                    _persist_pro_state(email.lower(), False)
+        except Exception as exc:
+            logger.warning('webhook persist skipped: %s', exc)
         return '', 200
+
+    # ─── EMAIL CAPTURE ───────────────────────────────────────────
+    @app.route('/api/notify', methods=['POST'])
+    def freemium_email_capture():
+        """Capture an email for re-engagement (paywall hit, no upgrade).
+        Stores to Firestore notify_subscribers/<email>. Idempotent."""
+        from flask import jsonify as _jsonify
+        data = request.get_json(silent=True) or request.form or {}
+        email = (data.get('email') or '').strip().lower()
+        if not email or '@' not in email or len(email) > 200:
+            return _jsonify(ok=False, error='invalid email'), 400
+        source = (data.get('source') or '').strip()[:80]
+        try:
+            _persist_email_capture(email, source)
+            return _jsonify(ok=True), 200
+        except Exception as exc:
+            logger.warning('email capture skipped: %s', exc)
+            return _jsonify(ok=False, error='temporarily unavailable'), 503
 
     # ─── FREEMIUM STATIC JS ──────────────────────────────────────
     # Served from package data so apps don't need to copy the file into
@@ -287,6 +332,14 @@ def register_freemium(
     def freemium_user_status():
         today = date.today().isoformat()
         usage = session.get(f'usage_{today}', 0)
+        # Refresh is_pro from Firestore (server-pushed by webhook). Falls
+        # through to the existing session value if Firestore is unreachable
+        # or has no record yet.
+        email = (session.get('user_email') or '').lower()
+        if email:
+            fs_pro = _read_pro_state(email)
+            if fs_pro is not None:
+                session['is_pro'] = fs_pro
         base = {
             'logged_in': bool(session.get('user_email')),
             'google_auth_enabled': google_auth_enabled,
@@ -344,3 +397,67 @@ def _open_checkout(secret_key: str, price_id: str, email: str, primary_url: str)
     except Exception as exc:
         logger.error('Stripe checkout error: %s', exc)
         return redirect('/')
+
+
+# ─── FIRESTORE PERSISTENCE ──────────────────────────────────────────
+# Free tier: 1 GiB storage, 50K reads/day, 20K writes/day. Sufficient
+# for is_pro flips + email capture at any reasonable scale. Falls back
+# silently if Firestore client isn't installed or auth fails — system
+# remains functional, just without push-Pro and without email capture.
+
+_FIRESTORE_CLIENT = None
+_FIRESTORE_TRIED = False
+
+
+def _firestore():
+    """Lazy singleton; returns None if Firestore is unavailable."""
+    global _FIRESTORE_CLIENT, _FIRESTORE_TRIED
+    if _FIRESTORE_TRIED:
+        return _FIRESTORE_CLIENT
+    _FIRESTORE_TRIED = True
+    try:
+        from google.cloud import firestore
+        _FIRESTORE_CLIENT = firestore.Client()
+    except Exception as exc:
+        logger.info('Firestore unavailable: %s', exc)
+    return _FIRESTORE_CLIENT
+
+
+def _persist_pro_state(email: str, is_pro: bool) -> None:
+    """Write {email → is_pro} to Firestore (collection: pro_users)."""
+    db = _firestore()
+    if not db or not email:
+        return
+    from google.cloud import firestore as _fs
+    db.collection('pro_users').document(email).set({
+        'is_pro': bool(is_pro),
+        'updated_at': _fs.SERVER_TIMESTAMP,
+    }, merge=True)
+
+
+def _read_pro_state(email: str):
+    """Return True/False if Firestore has a record for ``email``,
+    else None (caller falls through to other sources)."""
+    db = _firestore()
+    if not db or not email:
+        return None
+    try:
+        doc = db.collection('pro_users').document(email).get()
+        if doc.exists:
+            return bool(doc.to_dict().get('is_pro', False))
+    except Exception as exc:
+        logger.info('pro_users read failed for %s: %s', email, exc)
+    return None
+
+
+def _persist_email_capture(email: str, source: str) -> None:
+    """Write captured email to Firestore (collection: notify_subscribers)."""
+    db = _firestore()
+    if not db:
+        raise RuntimeError('Firestore unavailable')
+    from google.cloud import firestore as _fs
+    db.collection('notify_subscribers').document(email).set({
+        'email': email,
+        'source': source,
+        'captured_at': _fs.SERVER_TIMESTAMP,
+    }, merge=True)
