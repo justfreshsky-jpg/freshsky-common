@@ -22,9 +22,29 @@
                 google_auth_enabled: false, pro_monthly_dollars: '$1.99',
                 pro_yearly_dollars: '$19' };
 
+  // Fire a GA4 event if gtag is available (GA_MEASUREMENT_ID injected
+  // via context processor; gtag is loaded by the GA4 snippet). No-op
+  // if GA4 isn't wired on this page.
+  function track(event, params) {
+    try {
+      if (typeof window.gtag === 'function') {
+        window.gtag('event', event, params || {});
+      }
+    } catch (e) {}
+  }
+
+  var _wasProAtLastRefresh = false;
   function refresh() {
     return fetch('/api/user-status').then(function(r) { return r.json(); })
-      .then(function(s) { Object.assign(STATE, s); renderBar(); })
+      .then(function(s) {
+        Object.assign(STATE, s);
+        // Fire pro_unlocked exactly once per session when is_pro flips true
+        if (!_wasProAtLastRefresh && s.is_pro) {
+          track('pro_unlocked', { logged_in: !!s.logged_in });
+        }
+        _wasProAtLastRefresh = !!s.is_pro;
+        renderBar();
+      })
       .catch(function() {});
   }
 
@@ -76,6 +96,7 @@
   // Public: pages call this when their fetch returns to handle 429 paywalls.
   window.handleFreemiumResponse = function(response, outputElement) {
     if (response.status === 429) {
+      track('paywall_shown', { logged_in: !!STATE.logged_in, usage_today: STATE.usage_today });
       var html = '<div style="text-align:center;padding:24px">' +
         '<p style="font-size:18px;font-weight:600;margin-bottom:8px">⚡ Daily free limit reached</p>' +
         '<p style="color:#475569;margin-bottom:6px;font-size:15px">' +
@@ -86,9 +107,9 @@
         '</p>';
       if (STATE.stripe_enabled) {
         html += '<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">' +
-          '<a href="/subscribe" style="display:inline-block;background:#6366f1;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">' +
+          '<a href="/subscribe" data-fs-event="checkout_started" data-fs-plan="monthly" style="display:inline-block;background:#6366f1;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">' +
             (STATE.pro_pricing_label || 'Pro') + ' — ' + STATE.pro_monthly_dollars + '/mo</a>' +
-          '<a href="/subscribe/yearly" style="display:inline-block;background:#059669;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">' +
+          '<a href="/subscribe/yearly" data-fs-event="checkout_started" data-fs-plan="yearly" style="display:inline-block;background:#059669;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">' +
             'Yearly — ' + STATE.pro_yearly_dollars + '/yr <span style="opacity:.85;font-size:12px">(save ~20%)</span></a>' +
           '</div>' +
           '<p style="margin-top:14px;color:#94a3b8;font-size:12px">Cancel anytime. Free Google sign-in first.</p>';
@@ -119,6 +140,31 @@
       return r;
     });
   };
+
+  // Delegate GA4 funnel events: any element with data-fs-event triggers
+  // a track() on click. Also auto-tracks /subscribe* and /auth/google links.
+  document.addEventListener('click', function(ev) {
+    var el = ev.target;
+    while (el && el !== document.body) {
+      if (el.tagName === 'A' || el.tagName === 'BUTTON') break;
+      el = el.parentNode;
+    }
+    if (!el || el === document.body) return;
+    var explicit = el.getAttribute && el.getAttribute('data-fs-event');
+    var href = el.getAttribute && el.getAttribute('href');
+    if (explicit) {
+      var params = {};
+      var plan = el.getAttribute('data-fs-plan');
+      if (plan) params.plan = plan;
+      track(explicit, params);
+    } else if (href) {
+      if (href.indexOf('/auth/google') === 0) {
+        track('signup_clicked', { source: 'auth_link' });
+      } else if (href === '/subscribe' || href === '/subscribe/yearly') {
+        track('checkout_started', { plan: href === '/subscribe/yearly' ? 'yearly' : 'monthly' });
+      }
+    }
+  }, true);
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', refresh);
