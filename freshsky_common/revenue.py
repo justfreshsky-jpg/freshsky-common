@@ -256,23 +256,20 @@ def faq_schema_html(category: str) -> str:
 def trust_line_html(category: str) -> str:
     """One-line credibility blurb shown in the footer of every app.
 
-    Generic about the builder (no name, no employer); slightly tailored
-    by category to lead with the most relevant credential. Verifiable in
-    spirit — every claim is real (active U.S. K-12 educator, licensed
-    attorney with doctorate in law, Google for Education Certified
-    Trainer)."""
-    if category in ('education', 'flagship'):
-        # Lead with educator credential
-        body = ('Built by an active U.S. K-12 educator and Google for Education Certified Trainer '
-                '(also a licensed attorney with a doctorate in law).')
-    elif category == 'legal':
-        # Lead with legal credential
-        body = ('Built by a licensed attorney with a doctorate in law '
-                '(also an active U.S. K-12 educator and Google for Education Certified Trainer).')
-    else:
-        # General phrasing for benefits/civic/healthcare/housing/financial/business/newcomer
-        body = ('Built by a U.S. educator who is also a licensed attorney with a doctorate in law '
-                'and Google for Education Certified Trainer credentials.')
+    Identity-neutral by design — no personal credentials, names, or
+    employer references. Conveys US-jurisdiction, multi-domain rigor,
+    and the educational-only disclaimer that the legal HULEC pillar
+    requires. The `category` arg is currently unused but kept in the
+    signature so callers can opt into category tailoring later without
+    a portfolio-wide rebuild."""
+    del category  # reserved for future per-category tailoring
+    body = (
+        'Built and operated in the U.S. with subject-matter rigor '
+        'across legal, education, healthcare, civic, and benefits — '
+        'always educational guidance, never legal/medical/tax advice. '
+        'For decisions that affect your rights, money, or freedom, '
+        'consult a licensed professional in your jurisdiction.'
+    )
     return (
         '<p style="text-align:center;color:#94a3b8;font-size:11.5px;'
         'padding:0 24px 4px;max-width:680px;margin:0 auto;line-height:1.6;">'
