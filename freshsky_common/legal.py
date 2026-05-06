@@ -109,7 +109,7 @@ _TERMS_TEMPLATE = """<!DOCTYPE html>
 <p>The tool is provided "as is." We make no warranty about uptime, accuracy, completeness, or fitness for any particular purpose. If the tool is wrong, breaks, or is unavailable when you need it, we're not liable for the consequences. To the maximum extent allowed by law, our total liability is capped at zero — you didn't pay anything to use the free tier, after all.</p>
 
 <h2>Pricing</h2>
-<p>Most of our tools have a free daily quota. Some — like EduSafe AI — also offer a paid Teacher Pro tier (currently $3.99/mo or $29/yr) for unlimited use. Paid tiers are billed via Stripe; refunds and cancellations follow Stripe's standard processes plus our good-faith policy of refunding promptly when asked.</p>
+<p>Most of our tools have a free daily quota. The cross-portfolio Pro tier ($1.99/mo or $19/yr) unlocks unlimited use across all 30+ Fresh Sky AI tools with a single subscription. EduSafe AI also offers a separate Teacher Pro tier ($3.99/mo or $29/yr) for K-12 educator features. Paid tiers are billed via Stripe; refunds and cancellations follow Stripe's standard processes plus our good-faith policy of refunding promptly when asked.</p>
 
 <h2>Changes</h2>
 <p>We may update these terms. Continuing to use the tool after a change means you accept the new version. The date at the top tells you when the current version was published.</p>
