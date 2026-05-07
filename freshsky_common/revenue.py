@@ -117,18 +117,14 @@ _CATEGORY_APP_TYPE = {
 # Update when a new batch app launches or an existing one retires/renames.
 PORTFOLIO = [
     {'slug': 'eslparentadvocate',   'brand': 'ESL Parent Advocate',   'url': 'https://esl.freshskyai.com/',          'category': 'education'},
-    {'slug': 'multistatetax',       'brand': 'Multi-State Tax',       'url': 'https://tax.freshskyai.com/',          'category': 'civic'},
     {'slug': 'smallclaimsus',       'brand': 'Small Claims US',       'url': 'https://claims.freshskyai.com/',       'category': 'legal'},
     {'slug': 'govformhelper',       'brand': 'Gov Form Helper',       'url': 'https://forms.freshskyai.com/',        'category': 'newcomer'},
     {'slug': 'medicaidcheck',       'brand': 'Medicaid Check',        'url': 'https://medicaid.freshskyai.com/',     'category': 'healthcare'},
     {'slug': 'statemoverai',        'brand': 'State Mover AI',        'url': 'https://mover.freshskyai.com/',        'category': 'civic'},
     {'slug': 'hoadisputehelp',      'brand': 'HOA Dispute Help',      'url': 'https://hoa.freshskyai.com/',          'category': 'legal'},
-    {'slug': 'resumebridgeus',      'brand': 'Resume Bridge US',      'url': 'https://resume.freshskyai.com/',       'category': 'newcomer'},
     {'slug': 'foiahelper',          'brand': 'FOIA Helper',           'url': 'https://foia.freshskyai.com/',         'category': 'legal'},
     {'slug': 'snapcheck',           'brand': 'SNAP Check',            'url': 'https://snap.freshskyai.com/',         'category': 'benefits'},
     {'slug': 'unemploymentappeal',  'brand': 'Unemployment Appeal',   'url': 'https://unemploy.freshskyai.com/',     'category': 'benefits'},
-    {'slug': 'uscistimeline',       'brand': 'USCIS Timeline',        'url': 'https://uscis.freshskyai.com/',        'category': 'newcomer'},
-    {'slug': 'legalaidfinder',      'brand': 'Legal Aid Finder',      'url': 'https://legalaid.freshskyai.com/',     'category': 'legal'},
     {'slug': 'wageclaimai',         'brand': 'Wage Claim AI',         'url': 'https://wages.freshskyai.com/',        'category': 'legal'},
     {'slug': 'section8nav',         'brand': 'Section 8 Nav',         'url': 'https://section8.freshskyai.com/',     'category': 'housing'},
     {'slug': 'adarequester',        'brand': 'ADA Requester',         'url': 'https://ada.freshskyai.com/',          'category': 'legal'},
