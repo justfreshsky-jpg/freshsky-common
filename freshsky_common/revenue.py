@@ -8,11 +8,17 @@ Two things every app gets for free:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import pathlib
+import threading
+import time as _time
+import urllib.request
 from typing import Optional
 
 from flask import Flask, Response, jsonify
+
+_log = logging.getLogger(__name__)
 
 # ─── CATEGORIES ───────────────────────────────────────────
 # Each app declares its category at install time. Used by cross-promo,
@@ -24,10 +30,15 @@ CATEGORIES = {
 
 
 _PARTNERS_PATH = pathlib.Path(__file__).parent / 'partners.json'
+# When set (e.g. https://storage.googleapis.com/fresh-sky-config/partners.json),
+# the lib pulls the JSON from this URL with a TTL refresh — so affiliate-card
+# updates ship to the whole portfolio without bulk-redeploying every app.
+# Falls back to the bundled file on any fetch error.
+_PARTNERS_URL = os.environ.get('PARTNERS_URL', '').strip()
+_PARTNERS_TTL = int(os.environ.get('PARTNERS_TTL_SECONDS', '3600'))  # 1 hr default
 
 
-def _load_partners() -> dict:
-    """Read partners.json once per process. Returns {} on any error."""
+def _load_partners_local() -> dict:
     try:
         with _PARTNERS_PATH.open() as fh:
             return json.load(fh)
@@ -35,13 +46,47 @@ def _load_partners() -> dict:
         return {}
 
 
-_PARTNERS_CACHE = _load_partners()
+def _load_partners_remote(url: str) -> Optional[dict]:
+    try:
+        req = urllib.request.Request(url, headers={'User-Agent': 'freshsky-common/1.0'})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            if resp.status != 200:
+                return None
+            data = json.loads(resp.read().decode('utf-8'))
+            if isinstance(data, dict):
+                return data
+            return None
+    except Exception as exc:
+        _log.info('partners remote fetch failed (%s); using bundled fallback', exc)
+        return None
+
+
+_PARTNERS_CACHE = _load_partners_local()
+_PARTNERS_CACHE_TS = 0.0
+_PARTNERS_LOCK = threading.Lock()
+
+
+def _maybe_refresh_partners() -> None:
+    global _PARTNERS_CACHE, _PARTNERS_CACHE_TS
+    if not _PARTNERS_URL:
+        return
+    now = _time.time()
+    if (now - _PARTNERS_CACHE_TS) < _PARTNERS_TTL:
+        return
+    with _PARTNERS_LOCK:
+        if (_time.time() - _PARTNERS_CACHE_TS) < _PARTNERS_TTL:
+            return
+        remote = _load_partners_remote(_PARTNERS_URL)
+        if remote is not None:
+            _PARTNERS_CACHE = remote
+        _PARTNERS_CACHE_TS = _time.time()
 
 
 def partners_for_category(category: str) -> list[dict]:
     """Returns a list of {name, url, blurb} dicts for the given category, or
     an empty list if no partners are configured (in which case the consuming
     template's JS hides the 'Helpful services' section entirely)."""
+    _maybe_refresh_partners()
     return _PARTNERS_CACHE.get('by_category', {}).get(category, []) or []
 
 
