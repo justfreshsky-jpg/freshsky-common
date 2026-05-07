@@ -199,18 +199,45 @@ def register_freemium(
         return redirect(url_for('index'))
 
     # ─── PRO ENROLLMENT — UNIFIED ON HUB ─────────────────────────
-    # All sub-websites forward to the hub's pricing/checkout flow. No
-    # prices, no Stripe checkout shown on any batch app. The hub's Stripe
-    # customer record is authoritative — once the user pays at the hub,
-    # _check_stripe_subscription on each batch app picks up the unified
-    # Pro on next session refresh (same email = unlocked everywhere).
+    # The hub (freshskyai.com / www.freshskyai.com) runs the real Stripe
+    # Checkout. Every other Fresh Sky AI app — batch apps, EduSafe,
+    # InboxTriage, etc — has /subscribe redirect to the hub. The hub's
+    # Stripe customer record is authoritative; once the user pays at the
+    # hub, _check_stripe_subscription on each sub-app picks up the
+    # unified Pro on next session refresh (same email = unlocked
+    # everywhere in the portfolio).
+    _HUB_HOSTS = {'freshskyai.com', 'www.freshskyai.com'}
+
+    def _is_hub_request() -> bool:
+        host = (request.host or '').split(':')[0].lower()
+        return host in _HUB_HOSTS
+
     @app.route('/subscribe')
     def freemium_subscribe():
-        return redirect('https://www.freshskyai.com/subscribe')
+        if not _is_hub_request():
+            return redirect('https://www.freshskyai.com/subscribe')
+        # Hub: run real Stripe Checkout
+        if not stripe_enabled:
+            return redirect(url_for('index'))
+        if not session.get('user_email'):
+            return redirect(url_for('freemium_google_login', next='/subscribe'))
+        return _open_checkout(
+            stripe_secret_key, stripe_price_monthly,
+            session['user_email'], primary_url,
+        )
 
     @app.route('/subscribe/yearly')
     def freemium_subscribe_yearly():
-        return redirect('https://www.freshskyai.com/subscribe/yearly')
+        if not _is_hub_request():
+            return redirect('https://www.freshskyai.com/subscribe/yearly')
+        if not stripe_enabled or not stripe_price_yearly:
+            return redirect(url_for('index'))
+        if not session.get('user_email'):
+            return redirect(url_for('freemium_google_login', next='/subscribe/yearly'))
+        return _open_checkout(
+            stripe_secret_key, stripe_price_yearly,
+            session['user_email'], primary_url,
+        )
 
     @app.route('/billing')
     def freemium_billing_portal():
