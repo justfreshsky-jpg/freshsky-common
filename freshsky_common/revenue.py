@@ -176,10 +176,7 @@ PORTFOLIO = [
     {'slug': 'reentryhelp',         'brand': 'Reentry Help',          'url': 'https://reentry.freshskyai.com/',      'category': 'benefits'},
     {'slug': 'specialedai',         'brand': 'Special Ed AI',         'url': 'https://iep.freshskyai.com/',          'category': 'education'},
     {'slug': 'evictiondefense',     'brand': 'Eviction Defense',      'url': 'https://eviction.freshskyai.com/',     'category': 'legal'},
-    {'slug': 'solarevincentives',   'brand': 'Solar + EV Incentives', 'url': 'https://solar.freshskyai.com/',        'category': 'business'},
     {'slug': 'safetyplanai',        'brand': 'Safety Plan AI',        'url': 'https://safety.freshskyai.com/',       'category': 'legal'},
-    {'slug': 'mentalhealthfinder',  'brand': 'Mental Health Finder',  'url': 'https://mental.freshskyai.com/',       'category': 'healthcare'},
-    {'slug': 'studentdebtai',       'brand': 'Student Debt AI',       'url': 'https://studentloan.freshskyai.com/',  'category': 'financial'},
     {'slug': 'estateplanai',        'brand': 'Estate Plan AI',        'url': 'https://estate.freshskyai.com/',       'category': 'legal'},
     {'slug': 'childcarefinder',     'brand': 'Childcare Finder',      'url': 'https://childcare.freshskyai.com/',    'category': 'benefits'},
 ]
