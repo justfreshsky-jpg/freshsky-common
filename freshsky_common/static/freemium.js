@@ -74,10 +74,16 @@
       document.body.style.paddingTop = '40px';
     }
     var info, actions = '';
+    // The hub (and any other "no rate limit" deploy) sets a giant daily
+    // limit (e.g. 999999) to disable rate-limiting. Don't render the
+    // usage counter or paywall nudge in that case — it looks broken.
+    var hasRateLimit = (typeof STATE.daily_limit === 'number'
+      && STATE.daily_limit > 0 && STATE.daily_limit < 100000);
+
     // Compute usage proximity to cap. Surface a soft nudge at >=70% so
     // the paywall doesn't feel like an ambush. Color escalates: gray →
     // amber (70-89%) → red (90+%). 100% → standard 429 paywall card.
-    var pct = (STATE.daily_limit && STATE.daily_limit > 0)
+    var pct = hasRateLimit
       ? (STATE.usage_today / STATE.daily_limit) * 100 : 0;
     var nearCap = !STATE.is_pro && pct >= 70 && pct < 100;
     var infoColor = nearCap
@@ -95,22 +101,33 @@
     if (STATE.logged_in) {
       info = STATE.is_pro
         ? '⭐ Pro — all Fresh Sky AI tools'
-        : ('✨ Free (' + STATE.usage_today + '/' + STATE.daily_limit + ' today' + (nearCap ? ', ' + leftToday + ' left' : '') + ')');
+        : (hasRateLimit
+            ? ('✨ Free (' + STATE.usage_today + '/' + STATE.daily_limit + ' today' + (nearCap ? ', ' + leftToday + ' left' : '') + ')')
+            : '');
       actions = STATE.is_pro
         ? '<a href="https://www.freshskyai.com/#pro" target="_blank" rel="noopener" style="color:#6366f1;text-decoration:none;font-weight:500">Manage on Fresh Sky AI</a>'
         : '<a href="' + HUB_SUBSCRIBE + '" target="_blank" rel="noopener" style="background:#6366f1;color:#fff;padding:4px 12px;border-radius:4px;text-decoration:none;font-weight:500">Upgrade on Fresh Sky AI</a>';
       bar.innerHTML = '<span style="color:' + infoColor + ';font-weight:' + (nearCap ? '600' : '400') + '">' +
-        escapeHtml(STATE.name || STATE.email || '') + ' — ' + info + nudge + '</span>' +
+        escapeHtml(STATE.name || STATE.email || '') + (info ? ' — ' + info + nudge : '') + '</span>' +
         actions +
         '<a href="/logout" style="color:#94a3b8;text-decoration:none">Sign out</a>';
     } else {
-      var anonInfo = (typeof STATE.daily_limit === 'number')
+      var anonInfo = hasRateLimit
         ? '<span style="color:' + infoColor + ';font-weight:' + (nearCap ? '600' : '400') + ';margin-right:6px">✨ Free (' +
           STATE.usage_today + '/' + STATE.daily_limit + ' today' + (nearCap ? ', ' + leftToday + ' left' : '') + ')' + nudge + '</span>'
         : '';
       var loginBtn = STATE.google_auth_enabled
         ? '<a href="/auth/google" style="display:inline-flex;align-items:center;gap:6px;background:#4285f4;color:#fff;padding:5px 14px;border-radius:4px;text-decoration:none;font-size:13px;font-weight:500">🔒 Sign in with Google</a>'
         : '';
+      // If neither anon usage info nor a login button is present (i.e.,
+      // the hub or any other no-rate-limit deploy without google_auth),
+      // skip rendering the bar entirely so we don't leave an empty
+      // 40px-tall strip at the top of every page.
+      if (!anonInfo && !loginBtn) {
+        bar.style.display = 'none';
+        document.body.style.paddingTop = '';
+        return;
+      }
       bar.innerHTML = anonInfo + loginBtn;
     }
   }
