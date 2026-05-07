@@ -134,7 +134,6 @@ PORTFOLIO = [
     {'slug': 'adarequester',        'brand': 'ADA Requester',         'url': 'https://ada.freshskyai.com/',          'category': 'legal'},
     {'slug': 'reentryhelp',         'brand': 'Reentry Help',          'url': 'https://reentry.freshskyai.com/',      'category': 'benefits'},
     {'slug': 'specialedai',         'brand': 'Special Ed AI',         'url': 'https://iep.freshskyai.com/',          'category': 'education'},
-    {'slug': 'rxsavingsai',         'brand': 'Rx Savings AI',         'url': 'https://rx.freshskyai.com/',           'category': 'healthcare'},
     {'slug': 'evictiondefense',     'brand': 'Eviction Defense',      'url': 'https://eviction.freshskyai.com/',     'category': 'legal'},
     {'slug': 'solarevincentives',   'brand': 'Solar + EV Incentives', 'url': 'https://solar.freshskyai.com/',        'category': 'business'},
     {'slug': 'safetyplanai',        'brand': 'Safety Plan AI',        'url': 'https://safety.freshskyai.com/',       'category': 'legal'},
@@ -142,8 +141,6 @@ PORTFOLIO = [
     {'slug': 'studentdebtai',       'brand': 'Student Debt AI',       'url': 'https://studentloan.freshskyai.com/',  'category': 'financial'},
     {'slug': 'estateplanai',        'brand': 'Estate Plan AI',        'url': 'https://estate.freshskyai.com/',       'category': 'legal'},
     {'slug': 'childcarefinder',     'brand': 'Childcare Finder',      'url': 'https://childcare.freshskyai.com/',    'category': 'benefits'},
-    {'slug': 'backgroundcheckhelp', 'brand': 'Background Check Help', 'url': 'https://background.freshskyai.com/',   'category': 'legal'},
-    {'slug': 'foodforfamilies',     'brand': 'Food For Families',     'url': 'https://food.freshskyai.com/',         'category': 'benefits'},
 ]
 
 # When the current app's category has fewer than 3 other apps, fall back to
