@@ -200,7 +200,7 @@ _FAQ_BY_CATEGORY = {
         ('Does this work for IEP, 504, or ELL situations?',
          'Yes. The tools are designed around K-12 special education and English-learner contexts, with multilingual support so non-English-speaking parents can fully participate.'),
         ('Is this free for teachers and parents?',
-         'The free tier is generous (10 queries per day, no sign-in). EduSafe AI offers a Teacher Pro tier ($3.99/mo or $29/yr) for unlimited use.'),
+         'The free tier is generous (10 queries per day, no sign-in). One Fresh Sky AI Pro subscription unlocks unlimited use across every paid app — pricing on freshskyai.com.'),
     ],
     'newcomer': [
         ('Will this affect my immigration status?',
