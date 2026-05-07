@@ -106,7 +106,7 @@ def register_freemium(
             return jsonify(
                 error=(
                     f'Daily free limit reached ({free_daily_limit} queries). '
-                    f'Upgrade to {pro_pricing_label} for unlimited access.'
+                    f'Upgrade on Fresh Sky AI for unlimited access across the whole portfolio.'
                 ),
                 upgrade_required=True,
             ), 429
@@ -198,28 +198,19 @@ def register_freemium(
         session.clear()
         return redirect(url_for('index'))
 
-    # ─── STRIPE CHECKOUT ─────────────────────────────────────────
+    # ─── PRO ENROLLMENT — UNIFIED ON HUB ─────────────────────────
+    # All sub-websites forward to the hub's pricing/checkout flow. No
+    # prices, no Stripe checkout shown on any batch app. The hub's Stripe
+    # customer record is authoritative — once the user pays at the hub,
+    # _check_stripe_subscription on each batch app picks up the unified
+    # Pro on next session refresh (same email = unlocked everywhere).
     @app.route('/subscribe')
     def freemium_subscribe():
-        if not stripe_enabled:
-            return redirect(url_for('index'))
-        if not session.get('user_email'):
-            return redirect(url_for('freemium_google_login', next='/subscribe'))
-        return _open_checkout(
-            stripe_secret_key, stripe_price_monthly,
-            session['user_email'], primary_url,
-        )
+        return redirect('https://www.freshskyai.com/subscribe')
 
     @app.route('/subscribe/yearly')
     def freemium_subscribe_yearly():
-        if not stripe_enabled or not stripe_price_yearly:
-            return redirect(url_for('index'))
-        if not session.get('user_email'):
-            return redirect(url_for('freemium_google_login', next='/subscribe/yearly'))
-        return _open_checkout(
-            stripe_secret_key, stripe_price_yearly,
-            session['user_email'], primary_url,
-        )
+        return redirect('https://www.freshskyai.com/subscribe/yearly')
 
     @app.route('/billing')
     def freemium_billing_portal():
@@ -355,10 +346,10 @@ def register_freemium(
             'is_pro': bool(session.get('is_pro')),
             'usage_today': usage,
             'daily_limit': free_daily_limit,
-            'stripe_enabled': stripe_enabled,
-            'pro_monthly_dollars': pro_monthly_dollars,
-            'pro_yearly_dollars': pro_yearly_dollars,
-            'pro_pricing_label': pro_pricing_label,
+            # Legacy fields kept at False/empty so older cached freemium.js
+            # in user browsers stops trying to render local Stripe buttons.
+            # Pricing has moved to https://www.freshskyai.com/#pro.
+            'stripe_enabled': False,
         }
         if session.get('user_email'):
             base['email'] = session['user_email']

@@ -6,9 +6,12 @@
 
    Provides:
    - A persistent user bar at the top of the page showing free-tier
-     usage and a Sign-in / Upgrade button
+     usage and a Sign-in / "Upgrade on Fresh Sky AI" button
    - A 429 paywall card that replaces the tool's output area when the
-     daily free limit is hit (with $price/mo + $price/yr CTAs)
+     daily free limit is hit; one CTA pointing to the hub's pricing.
+
+   Pricing is centralized at https://www.freshskyai.com/#pro — this
+   library does not display prices on sub-websites.
 
    Designed to be additive: existing inline scripts keep working. The
    wrapper hooks into window.fetch only for /api/* POSTs to the host
@@ -19,8 +22,11 @@
 
   var STATE = { is_pro: false, usage_today: 0, daily_limit: 10,
                 stripe_enabled: false, logged_in: false,
-                google_auth_enabled: false, pro_monthly_dollars: '$1.99',
-                pro_yearly_dollars: '$19' };
+                google_auth_enabled: false };
+
+  // Single canonical Pro pricing/checkout URL for the whole portfolio.
+  // No prices are shown on sub-websites — they all forward here.
+  var HUB_SUBSCRIBE = 'https://www.freshskyai.com/#pro';
 
   // Fire a GA4 event if gtag is available (GA_MEASUREMENT_ID injected
   // via context processor; gtag is loaded by the GA4 snippet). No-op
@@ -70,13 +76,11 @@
     var info, actions = '';
     if (STATE.logged_in) {
       info = STATE.is_pro
-        ? '⭐ ' + escapeHtml(STATE.pro_pricing_label || 'Pro') + ' — all Fresh Sky AI tools'
+        ? '⭐ Pro — all Fresh Sky AI tools'
         : '✨ Free (' + STATE.usage_today + '/' + STATE.daily_limit + ' today)';
       actions = STATE.is_pro
-        ? '<a href="/billing" style="color:#6366f1;text-decoration:none;font-weight:500">Manage</a>'
-        : (STATE.stripe_enabled
-            ? '<a href="/subscribe" style="background:#6366f1;color:#fff;padding:4px 12px;border-radius:4px;text-decoration:none;font-weight:500">Upgrade</a>'
-            : '');
+        ? '<a href="https://www.freshskyai.com/#pro" target="_blank" rel="noopener" style="color:#6366f1;text-decoration:none;font-weight:500">Manage on Fresh Sky AI</a>'
+        : '<a href="' + HUB_SUBSCRIBE + '" target="_blank" rel="noopener" style="background:#6366f1;color:#fff;padding:4px 12px;border-radius:4px;text-decoration:none;font-weight:500">Upgrade on Fresh Sky AI</a>';
       bar.innerHTML = '<span style="color:#64748b">' +
         escapeHtml(STATE.name || STATE.email || '') + ' — ' + info + '</span>' +
         actions +
@@ -100,22 +104,16 @@
       var html = '<div style="text-align:center;padding:24px">' +
         '<p style="font-size:18px;font-weight:600;margin-bottom:8px">⚡ Daily free limit reached</p>' +
         '<p style="color:#475569;margin-bottom:6px;font-size:15px">' +
-          '<strong>One Pro subscription = unlimited access on every Fresh Sky AI tool.</strong>' +
+          '<strong>One Pro subscription unlocks every Fresh Sky AI tool.</strong>' +
         '</p>' +
         '<p style="color:#64748b;margin-bottom:16px;font-size:13px">' +
-          '32+ apps for civic, legal, healthcare, immigration, and benefits — covered by the same plan.' +
-        '</p>';
-      if (STATE.stripe_enabled) {
-        html += '<div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">' +
-          '<a href="/subscribe" data-fs-event="checkout_started" data-fs-plan="monthly" style="display:inline-block;background:#6366f1;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">' +
-            (STATE.pro_pricing_label || 'Pro') + ' — ' + STATE.pro_monthly_dollars + '/mo</a>' +
-          '<a href="/subscribe/yearly" data-fs-event="checkout_started" data-fs-plan="yearly" style="display:inline-block;background:#059669;color:#fff;padding:10px 24px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:500">' +
-            'Yearly — ' + STATE.pro_yearly_dollars + '/yr <span style="opacity:.85;font-size:12px">(save ~20%)</span></a>' +
-          '</div>' +
-          '<p style="margin-top:14px;color:#94a3b8;font-size:12px">Cancel anytime. Free Google sign-in first.</p>';
-      } else {
-        html += '<p style="color:#94a3b8;font-size:12px">Try again tomorrow — paid plan not yet enabled.</p>';
-      }
+          'EduSafe AI · USA Living Guide · Teacher Certs · InboxTriage · 25 specialty tools — covered by the same plan.' +
+        '</p>' +
+        '<a href="' + HUB_SUBSCRIBE + '" data-fs-event="checkout_started" target="_blank" rel="noopener" ' +
+        'style="display:inline-block;background:#6366f1;color:#fff;padding:11px 26px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:600">' +
+          'Upgrade on Fresh Sky AI →' +
+        '</a>' +
+        '<p style="margin-top:12px;color:#94a3b8;font-size:12px">Pricing + Stripe checkout live on the hub. Cancel anytime.</p>';
       // Email capture for users who don't upgrade today
       html += '<form id="fs-notify-form" style="margin-top:24px;padding-top:18px;border-top:1px solid #e2e8f0;display:flex;flex-direction:column;gap:8px;align-items:center">' +
         '<label style="font-size:12px;color:#64748b;font-weight:500">Want updates on new tools?</label>' +
