@@ -7,10 +7,12 @@ Two things every app gets for free:
 """
 from __future__ import annotations
 
+import json
 import os
+import pathlib
 from typing import Optional
 
-from flask import Flask, Response
+from flask import Flask, Response, jsonify
 
 # ─── CATEGORIES ───────────────────────────────────────────
 # Each app declares its category at install time. Used by cross-promo,
@@ -19,6 +21,28 @@ CATEGORIES = {
     'flagship', 'newcomer', 'education', 'legal', 'benefits',
     'civic', 'business', 'housing', 'healthcare', 'financial',
 }
+
+
+_PARTNERS_PATH = pathlib.Path(__file__).parent / 'partners.json'
+
+
+def _load_partners() -> dict:
+    """Read partners.json once per process. Returns {} on any error."""
+    try:
+        with _PARTNERS_PATH.open() as fh:
+            return json.load(fh)
+    except (OSError, ValueError):
+        return {}
+
+
+_PARTNERS_CACHE = _load_partners()
+
+
+def partners_for_category(category: str) -> list[dict]:
+    """Returns a list of {name, url, blurb} dicts for the given category, or
+    an empty list if no partners are configured (in which case the consuming
+    template's JS hides the 'Helpful services' section entirely)."""
+    return _PARTNERS_CACHE.get('by_category', {}).get(category, []) or []
 
 
 def register_seo_routes(app: Flask, slug: str, brand: str, primary_url: str) -> None:
@@ -373,6 +397,13 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
     if category not in CATEGORIES:
         raise ValueError(f'unknown category {category!r}; allowed: {sorted(CATEGORIES)}')
     register_seo_routes(app, slug=slug, brand=brand, primary_url=primary_url)
+
+    @app.route('/api/affiliates')
+    def _affiliates():
+        return jsonify(
+            partners=partners_for_category(category),
+            disclosure=_PARTNERS_CACHE.get('_disclosure_text', ''),
+        )
 
     # Privacy + Terms: auto-registered with shared boilerplate. Apps can
     # override by declaring their own /privacy or /terms route before

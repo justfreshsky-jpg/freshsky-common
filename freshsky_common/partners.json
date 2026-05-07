@@ -1,0 +1,21 @@
+{
+  "_about": "Affiliate / partner cards rendered as the 'Helpful services' section on every Fresh Sky AI app. Empty list per category = nothing displayed (the JS hides the section). Add entries as partner IDs are approved.",
+  "_disclosure_text": "Some pages include 'Helpful services' cards. Those are partner services we may earn a commission from at no extra cost to you. We only feature services we believe genuinely help and they are never required to use any tool.",
+  "_entry_shape": {
+    "name": "Brand name (max ~20 chars)",
+    "url": "Full affiliate URL with your partner/affiliate ID baked in",
+    "blurb": "One-sentence pitch (~80 chars max for layout)"
+  },
+  "by_category": {
+    "legal": [],
+    "benefits": [],
+    "civic": [],
+    "housing": [],
+    "healthcare": [],
+    "education": [],
+    "newcomer": [],
+    "financial": [],
+    "business": [],
+    "flagship": []
+  }
+}
