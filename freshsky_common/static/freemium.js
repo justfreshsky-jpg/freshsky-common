@@ -243,9 +243,33 @@
     }
   }, true);
 
+  // ─── Hub-mark: tiny attribution block linking back to the hub's
+  // /values, /pricing, /compare/ on every Fresh Sky AI app page.
+  // Auto-skips on the hub itself (host check) and on any page that
+  // already opted-out via <body data-fs-no-hub-mark>.
+  function mountHubMark() {
+    try {
+      var host = (window.location && window.location.host || '').toLowerCase();
+      if (host === 'www.freshskyai.com' || host === 'freshskyai.com') return;
+      if (document.body && document.body.hasAttribute('data-fs-no-hub-mark')) return;
+      if (document.getElementById('fs-hub-mark')) return;
+      var d = document.createElement('div');
+      d.id = 'fs-hub-mark';
+      d.setAttribute('role', 'contentinfo');
+      d.style.cssText = 'text-align:center;font:13px/1.5 system-ui,-apple-system,sans-serif;color:#94a3b8;padding:18px 12px 22px;border-top:1px solid #e5e7eb;margin-top:32px;background:#f8fafc;';
+      d.innerHTML =
+        'Part of the <a href="https://www.freshskyai.com/" target="_blank" rel="noopener" style="color:#1a6cf5;text-decoration:none;font-weight:600">Fresh Sky AI</a> portfolio · ' +
+        '<a href="https://www.freshskyai.com/values" target="_blank" rel="noopener" style="color:#64748b;text-decoration:underline">Values</a> · ' +
+        '<a href="https://www.freshskyai.com/pricing" target="_blank" rel="noopener" style="color:#64748b;text-decoration:underline">Pricing</a> · ' +
+        '<a href="https://www.freshskyai.com/compare/" target="_blank" rel="noopener" style="color:#64748b;text-decoration:underline">Compare</a>';
+      document.body.appendChild(d);
+    } catch (e) { /* never block app on a footer mark */ }
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', refresh);
+    document.addEventListener('DOMContentLoaded', function() { refresh(); mountHubMark(); });
   } else {
     refresh();
+    mountHubMark();
   }
 })();
