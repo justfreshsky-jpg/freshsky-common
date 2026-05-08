@@ -68,7 +68,7 @@ _PRIVACY_TEMPLATE = """<!DOCTYPE html>
 <h2>Changes</h2>
 <p>If this policy changes meaningfully, we'll update the date at the top. We'll never quietly start collecting more.</p>
 
-<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/terms">Terms of Use</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
+<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/terms">Terms of Use</a> · <a href="https://www.freshskyai.com/values">Values</a> · <a href="https://www.freshskyai.com/pricing">Pricing</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
 </body></html>"""
 
 
@@ -117,7 +117,7 @@ _TERMS_TEMPLATE = """<!DOCTYPE html>
 <h2>Contact</h2>
 <p>Questions, concerns, complaints, kudos: <a href="https://www.freshskyai.com/#contact">freshskyai.com/#contact</a>.</p>
 
-<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/privacy">Privacy Policy</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
+<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/privacy">Privacy Policy</a> · <a href="https://www.freshskyai.com/values">Values</a> · <a href="https://www.freshskyai.com/pricing">Pricing</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
 </body></html>"""
 
 
