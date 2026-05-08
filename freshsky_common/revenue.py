@@ -179,6 +179,7 @@ PORTFOLIO = [
     {'slug': 'safetyplanai',        'brand': 'Safety Plan AI',        'url': 'https://safety.freshskyai.com/',       'category': 'legal'},
     {'slug': 'estateplanai',        'brand': 'Estate Plan AI',        'url': 'https://estate.freshskyai.com/',       'category': 'legal'},
     {'slug': 'childcarefinder',     'brand': 'Childcare Finder',      'url': 'https://childcare.freshskyai.com/',    'category': 'benefits'},
+    {'slug': 'seniorbenefits',      'brand': 'Senior Benefits AI',    'url': 'https://seniorbenefits.freshskyai.com/', 'category': 'benefits'},
 ]
 
 # When the current app's category has fewer than 3 other apps, fall back to
