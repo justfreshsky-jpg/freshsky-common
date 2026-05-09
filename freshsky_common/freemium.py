@@ -93,6 +93,14 @@ def register_freemium(
     redirect_uri = f'{primary_url}/auth/google/callback' if primary_url else ''
     owner_email = (owner_email or '').strip().lower()
 
+    # Free-everywhere mode: enforce hard rate limits at the infrastructure
+    # layer so abuse can't blow through free LLM tiers. Single call wires
+    # @before_request gates on all POST endpoints. Apps can opt out by
+    # passing free_daily_limit=-1 (skips both the gate and the rate limits).
+    if free_daily_limit >= 0:
+        from .rate_limit import register_global_rate_limits
+        register_global_rate_limits(app, owner_email=owner_email)
+
     # ─── GATE FUNCTION ───────────────────────────────────────────
     # Free-everywhere mode (2026-05-09 pivot): every Fresh Sky AI app is
     # free with no daily limit. Revenue model is hub-only donations
