@@ -94,24 +94,16 @@ def register_freemium(
     owner_email = (owner_email or '').strip().lower()
 
     # ─── GATE FUNCTION ───────────────────────────────────────────
+    # Free-everywhere mode (2026-05-09 pivot): every Fresh Sky AI app is
+    # free with no daily limit. Revenue model is hub-only donations
+    # (/support on freshskyai.com). The gate is kept as a stub so
+    # existing call sites `gate = check(); if gate is not None: return gate`
+    # continue to compile and run. Per-IP / per-user rate limiting is
+    # handled separately by register_global_rate_limits().
     def check() -> Optional[tuple]:
-        if session.get('is_pro'):
-            return None
-        if owner_email and (session.get('user_email') or '').lower() == owner_email:
-            return None
+        # Track usage in session for stats only (not enforced).
         today = date.today().isoformat()
         key = f'usage_{today}'
-        usage = session.get(key, 0)
-        if usage >= free_daily_limit:
-            return jsonify(
-                error=(
-                    f'Daily free limit reached ({free_daily_limit} queries). '
-                    f'Upgrade on Fresh Sky AI for unlimited access across the whole portfolio.'
-                ),
-                upgrade_required=True,
-            ), 429
-        # Don't increment yet — defer to after_request so we only charge
-        # successful (2xx) calls. Failed validation (400) is free.
         g.freemium_will_charge = True
         g.freemium_usage_key = key
         return None
@@ -214,30 +206,13 @@ def register_freemium(
 
     @app.route('/subscribe')
     def freemium_subscribe():
-        if not _is_hub_request():
-            return redirect('https://www.freshskyai.com/subscribe')
-        # Hub: run real Stripe Checkout
-        if not stripe_enabled:
-            return redirect(url_for('index'))
-        if not session.get('user_email'):
-            return redirect(url_for('freemium_google_login', next='/subscribe'))
-        return _open_checkout(
-            stripe_secret_key, stripe_price_monthly,
-            session['user_email'], primary_url,
-        )
+        # Free-everywhere mode: there is no Pro tier anymore. Every
+        # /subscribe request goes to the hub /support donation page.
+        return redirect('https://www.freshskyai.com/support', code=302)
 
     @app.route('/subscribe/yearly')
     def freemium_subscribe_yearly():
-        if not _is_hub_request():
-            return redirect('https://www.freshskyai.com/subscribe/yearly')
-        if not stripe_enabled or not stripe_price_yearly:
-            return redirect(url_for('index'))
-        if not session.get('user_email'):
-            return redirect(url_for('freemium_google_login', next='/subscribe/yearly'))
-        return _open_checkout(
-            stripe_secret_key, stripe_price_yearly,
-            session['user_email'], primary_url,
-        )
+        return redirect('https://www.freshskyai.com/support', code=302)
 
     @app.route('/billing')
     def freemium_billing_portal():
@@ -357,26 +332,17 @@ def register_freemium(
     # ─── USER STATUS API ─────────────────────────────────────────
     @app.route('/api/user-status')
     def freemium_user_status():
-        today = date.today().isoformat()
-        usage = session.get(f'usage_{today}', 0)
-        # Refresh is_pro from Firestore (server-pushed by webhook). Falls
-        # through to the existing session value if Firestore is unreachable
-        # or has no record yet.
-        email = (session.get('user_email') or '').lower()
-        if email:
-            fs_pro = _read_pro_state(email)
-            if fs_pro is not None:
-                session['is_pro'] = fs_pro
+        # Free-everywhere mode: no Pro distinction, no daily limit.
+        # `daily_limit: 0` signals to freemium.js that there is no cap.
         base = {
             'logged_in': bool(session.get('user_email')),
             'google_auth_enabled': google_auth_enabled,
-            'is_pro': bool(session.get('is_pro')),
-            'usage_today': usage,
-            'daily_limit': free_daily_limit,
-            # Legacy fields kept at False/empty so older cached freemium.js
-            # in user browsers stops trying to render local Stripe buttons.
-            # Pricing has moved to https://www.freshskyai.com/#pro.
+            'is_pro': True,            # legacy field; everyone is "Pro" (free)
+            'free_everywhere': True,   # new flag for updated UIs
+            'usage_today': 0,
+            'daily_limit': 0,          # 0 = unlimited
             'stripe_enabled': False,
+            'donation_url': 'https://www.freshskyai.com/support',
         }
         if session.get('user_email'):
             base['email'] = session['user_email']
