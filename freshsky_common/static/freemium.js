@@ -1,36 +1,29 @@
-/* freshsky-common freemium UI — drop into any batch app's <head>:
-     <script src="/static/freemium.js"></script>
-   Expects the page to follow the standard pattern: each generation
-   button lives inside a tool card; outputs live in the same card; the
-   global fetch() call passes through window.handleFreemiumResponse().
+/* freshsky-common freemium UI — free-everywhere edition.
 
-   Provides:
-   - A persistent user bar at the top of the page showing free-tier
-     usage and a Sign-in / "Upgrade on Fresh Sky AI" button
-   - A 429 paywall card that replaces the tool's output area when the
-     daily free limit is hit; one CTA pointing to the hub's pricing.
+   Drop into any Fresh Sky AI app's <head>:
+     <script src="/freemium.js"></script>
 
-   Pricing is centralized at https://www.freshskyai.com/#pro — this
-   library does not display prices on sub-websites.
+   What this provides:
+   - A slim top user bar with optional Google sign-in + a Support link
+     (sign-in is purely optional now; it raises your daily rate-limit cap)
+   - A friendly 429 rate-limit message (replaces the old paywall card)
+   - A hub-mark footer linking back to freshskyai.com on every sub-app
+   - Optional GA4 click tracking (sign-in, support, rate-limit hits)
 
-   Designed to be additive: existing inline scripts keep working. The
-   wrapper hooks into window.fetch only for /api/* POSTs to the host
-   origin. */
+   Pricing is gone (free-everywhere pivot 2026-05-09). All money flow is
+   one-time donations on https://www.freshskyai.com/support. This file
+   does not show prices anywhere. */
 (function() {
   if (window.__freemiumLoaded) return;
   window.__freemiumLoaded = true;
 
-  var STATE = { is_pro: false, usage_today: 0, daily_limit: 10,
-                stripe_enabled: false, logged_in: false,
-                google_auth_enabled: false };
+  var STATE = {
+    is_pro: true, free_everywhere: true, logged_in: false,
+    google_auth_enabled: false,
+    donation_url: 'https://www.freshskyai.com/support',
+  };
+  var SUPPORT_URL = 'https://www.freshskyai.com/support';
 
-  // Single canonical Pro pricing/checkout URL for the whole portfolio.
-  // No prices are shown on sub-websites — they all forward here.
-  var HUB_SUBSCRIBE = 'https://www.freshskyai.com/#pro';
-
-  // Fire a GA4 event if gtag is available (GA_MEASUREMENT_ID injected
-  // via context processor; gtag is loaded by the GA4 snippet). No-op
-  // if GA4 isn't wired on this page.
   function track(event, params) {
     try {
       if (typeof window.gtag === 'function') {
@@ -39,18 +32,10 @@
     } catch (e) {}
   }
 
-  var _wasProAtLastRefresh = false;
   function refresh() {
-    return fetch('/api/user-status').then(function(r) { return r.json(); })
-      .then(function(s) {
-        Object.assign(STATE, s);
-        // Fire pro_unlocked exactly once per session when is_pro flips true
-        if (!_wasProAtLastRefresh && s.is_pro) {
-          track('pro_unlocked', { logged_in: !!s.logged_in });
-        }
-        _wasProAtLastRefresh = !!s.is_pro;
-        renderBar();
-      })
+    return fetch('/api/user-status')
+      .then(function(r) { return r.json(); })
+      .then(function(s) { Object.assign(STATE, s); renderBar(); })
       .catch(function() {});
   }
 
@@ -73,153 +58,84 @@
       document.body.prepend(bar);
       document.body.style.paddingTop = '40px';
     }
-    var info, actions = '';
-    // The hub (and any other "no rate limit" deploy) sets a giant daily
-    // limit (e.g. 999999) to disable rate-limiting. Don't render the
-    // usage counter or paywall nudge in that case — it looks broken.
-    var hasRateLimit = (typeof STATE.daily_limit === 'number'
-      && STATE.daily_limit > 0 && STATE.daily_limit < 100000);
 
-    // Compute usage proximity to cap. Surface a soft nudge at >=70% so
-    // the paywall doesn't feel like an ambush. Color escalates: gray →
-    // amber (70-89%) → red (90+%). 100% → standard 429 paywall card.
-    var pct = hasRateLimit
-      ? (STATE.usage_today / STATE.daily_limit) * 100 : 0;
-    var nearCap = !STATE.is_pro && pct >= 70 && pct < 100;
-    var infoColor = nearCap
-      ? (pct >= 90 ? '#b91c1c' : '#b45309')
-      : '#64748b';
-    if (nearCap && !window.__freemiumNudgeFired) {
-      window.__freemiumNudgeFired = true;
-      track('paywall_warning', { usage_today: STATE.usage_today, daily_limit: STATE.daily_limit, pct: Math.round(pct) });
-    }
-    var leftToday = (STATE.daily_limit || 0) - (STATE.usage_today || 0);
-    var nudge = nearCap
-      ? ' · <a href="' + HUB_SUBSCRIBE + '" target="_blank" rel="noopener" style="color:' + infoColor + ';text-decoration:underline;font-weight:600">Upgrade for unlimited →</a>'
-      : '';
+    var support =
+      '<a href="' + SUPPORT_URL + '" target="_blank" rel="noopener" ' +
+      'data-fs-event="support_clicked" ' +
+      'style="color:#6366f1;text-decoration:none;font-weight:500;">💛 Support</a>';
 
     if (STATE.logged_in) {
-      info = STATE.is_pro
-        ? '⭐ Pro — all Fresh Sky AI tools'
-        : (hasRateLimit
-            ? ('✨ Free (' + STATE.usage_today + '/' + STATE.daily_limit + ' today' + (nearCap ? ', ' + leftToday + ' left' : '') + ')')
-            : '');
-      actions = STATE.is_pro
-        ? '<a href="https://www.freshskyai.com/#pro" target="_blank" rel="noopener" style="color:#6366f1;text-decoration:none;font-weight:500">Manage on Fresh Sky AI</a>'
-        : '<a href="' + HUB_SUBSCRIBE + '" target="_blank" rel="noopener" style="background:#6366f1;color:#fff;padding:4px 12px;border-radius:4px;text-decoration:none;font-weight:500">Upgrade on Fresh Sky AI</a>';
-      bar.innerHTML = '<span style="color:' + infoColor + ';font-weight:' + (nearCap ? '600' : '400') + '">' +
-        escapeHtml(STATE.name || STATE.email || '') + (info ? ' — ' + info + nudge : '') + '</span>' +
-        actions +
-        '<a href="/logout" style="color:#94a3b8;text-decoration:none">Sign out</a>';
-    } else {
-      var anonInfo = hasRateLimit
-        ? '<span style="color:' + infoColor + ';font-weight:' + (nearCap ? '600' : '400') + ';margin-right:6px">✨ Free (' +
-          STATE.usage_today + '/' + STATE.daily_limit + ' today' + (nearCap ? ', ' + leftToday + ' left' : '') + ')' + nudge + '</span>'
-        : '';
-      var loginBtn = STATE.google_auth_enabled
-        ? '<a href="/auth/google" style="display:inline-flex;align-items:center;gap:6px;background:#4285f4;color:#fff;padding:5px 14px;border-radius:4px;text-decoration:none;font-size:13px;font-weight:500">🔒 Sign in with Google</a>'
-        : '';
-      // If neither anon usage info nor a login button is present (i.e.,
-      // the hub or any other no-rate-limit deploy without google_auth),
-      // skip rendering the bar entirely so we don't leave an empty
-      // 40px-tall strip at the top of every page.
-      if (!anonInfo && !loginBtn) {
-        bar.style.display = 'none';
-        document.body.style.paddingTop = '';
-        return;
-      }
-      bar.innerHTML = anonInfo + loginBtn;
+      bar.innerHTML =
+        '<span style="color:#64748b;">' +
+          escapeHtml(STATE.name || STATE.email || '') +
+        '</span>' +
+        support +
+        '<a href="/logout" style="color:#94a3b8;text-decoration:none;">Sign out</a>';
+      return;
     }
+
+    var loginBtn = STATE.google_auth_enabled
+      ? '<a href="/auth/google" ' +
+          'style="display:inline-flex;align-items:center;gap:6px;' +
+          'background:#4285f4;color:#fff;padding:5px 14px;border-radius:4px;' +
+          'text-decoration:none;font-size:13px;font-weight:500;" ' +
+          'title="Optional — sign in to get a higher daily rate limit">' +
+          '🔒 Sign in</a>'
+      : '';
+
+    if (!loginBtn) {
+      // No login + no Pro means there's nothing useful to show — hide the bar
+      // entirely so we don't leave a 40px-tall empty strip on every page.
+      bar.style.display = 'none';
+      document.body.style.paddingTop = '';
+      return;
+    }
+    bar.innerHTML = loginBtn + support;
   }
 
-  // Public: pages call this when their fetch returns to handle 429 paywalls.
+  // Public: pages call this when their fetch returns, to render a friendly
+  // 429 message in the tool's output area. Replaces the old paywall card.
   window.handleFreemiumResponse = function(response, outputElement) {
-    if (response.status === 429) {
-      track('paywall_shown', { logged_in: !!STATE.logged_in, usage_today: STATE.usage_today });
-      var html = '<div style="text-align:center;padding:24px">' +
-        '<p style="font-size:18px;font-weight:600;margin-bottom:8px">⚡ Daily free limit reached</p>' +
-        '<p style="color:#475569;margin-bottom:6px;font-size:15px">' +
-          '<strong>One Pro subscription unlocks every Fresh Sky AI tool.</strong>' +
+    if (response.status !== 429) return false;
+
+    track('rate_limit_hit', { logged_in: !!STATE.logged_in });
+
+    var loginNudge = (!STATE.logged_in && STATE.google_auth_enabled)
+      ? ' Or <a href="/auth/google" style="color:#1a6cf5;text-decoration:underline;font-weight:600;">sign in with Google</a> for a higher daily limit.'
+      : '';
+    var html =
+      '<div style="text-align:center;padding:24px;">' +
+        '<p style="font-size:18px;font-weight:600;margin-bottom:8px;">⏳ Slow down a bit</p>' +
+        '<p style="color:#475569;margin-bottom:16px;font-size:15px;line-height:1.5;">' +
+          "You hit the rate limit. Please wait a few minutes and try again." +
+          loginNudge +
         '</p>' +
-        '<p style="color:#64748b;margin-bottom:16px;font-size:13px">' +
-          'EduSafe AI · USA Living Guide · Teacher Certs · InboxTriage · 25 specialty tools — covered by the same plan.' +
-        '</p>' +
-        '<a href="' + HUB_SUBSCRIBE + '" data-fs-event="checkout_started" target="_blank" rel="noopener" ' +
-        'style="display:inline-block;background:#6366f1;color:#fff;padding:11px 26px;border-radius:6px;text-decoration:none;font-size:14px;font-weight:600">' +
-          'Upgrade on Fresh Sky AI →' +
+        '<a href="' + SUPPORT_URL + '" data-fs-event="support_clicked" target="_blank" rel="noopener" ' +
+          'style="display:inline-block;background:#6366f1;color:#fff;padding:11px 26px;' +
+          'border-radius:6px;text-decoration:none;font-size:14px;font-weight:600;">' +
+          '💛 Support to help raise the cap' +
         '</a>' +
-        '<p style="margin-top:12px;color:#94a3b8;font-size:12px">Pricing + Stripe checkout live on the hub. Cancel anytime.</p>';
-      // Email capture for users who don't upgrade today
-      html += '<form id="fs-notify-form" style="margin-top:24px;padding-top:18px;border-top:1px solid #e2e8f0;display:flex;flex-direction:column;gap:8px;align-items:center">' +
-        '<label style="font-size:12px;color:#64748b;font-weight:500">Want updates on new tools?</label>' +
-        '<div style="display:flex;gap:6px;width:100%;max-width:340px">' +
-          '<input type="email" name="email" required placeholder="you@example.com" style="flex:1;padding:8px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px" />' +
-          '<button type="submit" style="background:#475569;color:#fff;border:none;padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500">Notify me</button>' +
-        '</div>' +
-        '<span id="fs-notify-status" style="font-size:11px;color:#94a3b8;min-height:14px"></span>' +
-      '</form>';
-      html += '</div>';
-      if (outputElement) outputElement.innerHTML = html;
-      // Wire the email capture form
-      var form = (outputElement || document).querySelector('#fs-notify-form');
-      if (form) {
-        form.addEventListener('submit', function(ev) {
-          ev.preventDefault();
-          var emailInput = form.querySelector('input[name="email"]');
-          var status = form.querySelector('#fs-notify-status');
-          var email = (emailInput.value || '').trim();
-          if (!email || email.indexOf('@') === -1) {
-            status.textContent = 'Please enter a valid email.';
-            status.style.color = '#dc2626';
-            return;
-          }
-          status.textContent = 'Saving…';
-          status.style.color = '#94a3b8';
-          fetch('/api/notify', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({email: email, source: window.location.host})
-          }).then(function(r) {
-            if (r.ok) {
-              status.textContent = '✓ Saved. We\'ll be in touch.';
-              status.style.color = '#059669';
-              emailInput.disabled = true;
-              track('email_captured', { source: window.location.host });
-            } else {
-              status.textContent = 'Save failed — try again later.';
-              status.style.color = '#dc2626';
-            }
-          }).catch(function() {
-            status.textContent = 'Network error — try again later.';
-            status.style.color = '#dc2626';
-          });
-        });
-      }
-      // Refresh user bar to update counter
-      refresh();
-      return true; // handled
-    }
-    return false; // not handled
+        '<p style="margin-top:12px;color:#94a3b8;font-size:12px;">Every Fresh Sky AI tool is free. Donations cover the running cost.</p>' +
+      '</div>';
+    if (outputElement) outputElement.innerHTML = html;
+    refresh();
+    return true;
   };
 
-  // Best-effort: also auto-wrap fetch so legacy inline scripts don't have
-  // to opt in. We only intervene on 429 from same-origin /api/ POSTs.
+  // Auto-refresh state when any /api/ call returns 429 (so the user bar
+  // stays in sync if a sibling tool already hit the limit).
   var origFetch = window.fetch.bind(window);
   window.fetch = function(input, init) {
     return origFetch(input, init).then(function(r) {
       try {
         var url = (typeof input === 'string') ? input : (input && input.url) || '';
-        if (r.status === 429 && url.indexOf('/api/') === 0) {
-          // Increment-counter side effect: just refresh the bar
-          refresh();
-        }
+        if (r.status === 429 && url.indexOf('/api/') === 0) refresh();
       } catch (e) {}
       return r;
     });
   };
 
-  // Delegate GA4 funnel events: any element with data-fs-event triggers
-  // a track() on click. Also auto-tracks /subscribe* and /auth/google links.
+  // Light click tracking for funnel insight (sign-in + support).
   document.addEventListener('click', function(ev) {
     var el = ev.target;
     while (el && el !== document.body) {
@@ -230,23 +146,14 @@
     var explicit = el.getAttribute && el.getAttribute('data-fs-event');
     var href = el.getAttribute && el.getAttribute('href');
     if (explicit) {
-      var params = {};
-      var plan = el.getAttribute('data-fs-plan');
-      if (plan) params.plan = plan;
-      track(explicit, params);
-    } else if (href) {
-      if (href.indexOf('/auth/google') === 0) {
-        track('signup_clicked', { source: 'auth_link' });
-      } else if (href === '/subscribe' || href === '/subscribe/yearly') {
-        track('checkout_started', { plan: href === '/subscribe/yearly' ? 'yearly' : 'monthly' });
-      }
+      track(explicit, { source: window.location.host });
+    } else if (href && href.indexOf('/auth/google') === 0) {
+      track('signup_clicked', { source: 'auth_link' });
     }
   }, true);
 
-  // ─── Hub-mark: tiny attribution block linking back to the hub's
-  // /values, /pricing, /compare/ on every Fresh Sky AI app page.
-  // Auto-skips on the hub itself (host check) and on any page that
-  // already opted-out via <body data-fs-no-hub-mark>.
+  // Tiny hub-mark footer linking back to freshskyai.com.
+  // Auto-skips on the hub itself + on opt-out pages (<body data-fs-no-hub-mark>).
   function mountHubMark() {
     try {
       var host = (window.location && window.location.host || '').toLowerCase();
@@ -256,14 +163,17 @@
       var d = document.createElement('div');
       d.id = 'fs-hub-mark';
       d.setAttribute('role', 'contentinfo');
-      d.style.cssText = 'text-align:center;font:13px/1.5 system-ui,-apple-system,sans-serif;color:#94a3b8;padding:18px 12px 22px;border-top:1px solid #e5e7eb;margin-top:32px;background:#f8fafc;';
+      d.style.cssText = 'text-align:center;font:13px/1.5 system-ui,-apple-system,sans-serif;' +
+        'color:#94a3b8;padding:18px 12px 22px;border-top:1px solid #e5e7eb;' +
+        'margin-top:32px;background:#f8fafc;';
       d.innerHTML =
-        'Part of the <a href="https://www.freshskyai.com/" target="_blank" rel="noopener" style="color:#1a6cf5;text-decoration:none;font-weight:600">Fresh Sky AI</a> portfolio · ' +
-        '<a href="https://www.freshskyai.com/values" target="_blank" rel="noopener" style="color:#64748b;text-decoration:underline">Values</a> · ' +
-        '<a href="https://www.freshskyai.com/pricing" target="_blank" rel="noopener" style="color:#64748b;text-decoration:underline">Pricing</a> · ' +
-        '<a href="https://www.freshskyai.com/compare/" target="_blank" rel="noopener" style="color:#64748b;text-decoration:underline">Compare</a>';
+        'Part of <a href="https://www.freshskyai.com/" target="_blank" rel="noopener" ' +
+          'style="color:#1a6cf5;text-decoration:none;font-weight:600;">Fresh Sky AI</a> · ' +
+        '<a href="https://www.freshskyai.com/support" target="_blank" rel="noopener" ' +
+          'data-fs-event="support_clicked" ' +
+          'style="color:#64748b;text-decoration:underline;">💛 Support</a>';
       document.body.appendChild(d);
-    } catch (e) { /* never block app on a footer mark */ }
+    } catch (e) {}
   }
 
   if (document.readyState === 'loading') {
