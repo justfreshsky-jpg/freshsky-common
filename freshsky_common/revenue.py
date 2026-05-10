@@ -203,7 +203,7 @@ _FAQ_BY_CATEGORY = {
         ('Does this work in my state?',
          'Yes. Every legal tool is state-aware: the AI is told which state you are in (or works from the federal default) and tailors its guidance to that state’s statutes, court rules, and procedural quirks.'),
         ('How much does this cost?',
-         'The free tier covers 10 queries per day per session, no sign-in needed. Some apps offer a Pro subscription with unlimited use; the free tier is intentionally generous and not a trial.'),
+         'Every Fresh Sky AI tool is free, no sign-in required. Fair-use rate limits keep the system serving everyone. If you find it useful, one-time donations are accepted at freshskyai.com/support.'),
     ],
     'benefits': [
         ('Is this affiliated with the government?',
@@ -223,7 +223,7 @@ _FAQ_BY_CATEGORY = {
         ('How current is the information?',
          'The AI is grounded in publicly available federal and state information. For time-sensitive items (deadlines, election dates), verify with the relevant agency before acting.'),
         ('Is this free?',
-         'Yes for the daily quota; some tools have a Pro tier for unlimited use. The free tier is meaningful, not a teaser.'),
+         'Yes — every Fresh Sky AI tool is free. No paywall, no sign-up, no Pro tier. Donations on the hub support page cover the run cost if you want to chip in.'),
     ],
     'healthcare': [
         ('Is this medical advice?',
@@ -243,7 +243,7 @@ _FAQ_BY_CATEGORY = {
         ('Does this work for IEP, 504, or ELL situations?',
          'Yes. The tools are designed around K-12 special education and English-learner contexts, with multilingual support so non-English-speaking parents can fully participate.'),
         ('Is this free for teachers and parents?',
-         'The free tier is generous (10 queries per day, no sign-in). One Fresh Sky AI Pro subscription unlocks unlimited use across every paid app — pricing on freshskyai.com.'),
+         'Yes — every tool is free, no sign-in required. Fair-use rate limits keep the system serving every classroom. Donations on freshskyai.com/support cover the modest run cost if you want to chip in.'),
     ],
     'newcomer': [
         ('Will this affect my immigration status?',
