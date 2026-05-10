@@ -200,8 +200,8 @@ def register_freemium(
 
     # ─── PRO ENROLLMENT — UNIFIED ON HUB ─────────────────────────
     # The hub (freshskyai.com / www.freshskyai.com) runs the real Stripe
-    # Checkout. Every other Fresh Sky AI app — batch apps, EduSafe,
-    # InboxTriage, etc — has /subscribe redirect to the hub. The hub's
+    # Checkout. Every other Fresh Sky AI app — batch apps, EduSafe, etc.
+    # — has /subscribe redirect to the hub. The hub's
     # Stripe customer record is authoritative; once the user pays at the
     # hub, _check_stripe_subscription on each sub-app picks up the
     # unified Pro on next session refresh (same email = unlocked
