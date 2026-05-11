@@ -1,28 +1,30 @@
-/* freshsky-common freemium UI — free-everywhere edition.
+/* freshsky-common freemium UI — Pro tier edition.
 
    Drop into any Fresh Sky AI app's <head>:
      <script src="/freemium.js"></script>
 
    What this provides:
-   - A slim top user bar with optional Google sign-in + a Support link
-     (sign-in is purely optional now; it raises your daily rate-limit cap)
-   - A friendly 429 rate-limit message (replaces the old paywall card)
-   - A hub-mark footer linking back to freshskyai.com on every sub-app
-   - Optional GA4 click tracking (sign-in, support, rate-limit hits)
+   - A slim top user bar with Google sign-in + Pro pill + daily usage
+   - "Get Pro" CTA that links to https://www.freshskyai.com/pricing
+   - A friendly 429 rate-limit message that pitches the upgrade
+   - Optional GA4 click tracking (sign-in, upgrade, rate-limit hits)
 
-   Pricing is gone (free-everywhere pivot 2026-05-09). All money flow is
-   one-time donations on https://www.freshskyai.com/support. This file
-   does not show prices anywhere. */
+   Pro tier (restored 2026-05-11):
+   - $1.99/mo or $19.99/yr unlocks unlimited use across all 22 apps
+   - Free anonymous: ~10 queries/day per IP
+   - Free signed-in: ~20 queries/day per user
+   - Pro: unlimited (2000/day soft cap) */
 (function() {
   if (window.__freemiumLoaded) return;
   window.__freemiumLoaded = true;
 
   var STATE = {
-    is_pro: true, free_everywhere: true, logged_in: false,
+    is_pro: false, logged_in: false,
     google_auth_enabled: false,
-    donation_url: 'https://www.freshskyai.com/support',
+    usage_today: 0, daily_limit: 10,
+    pricing_url: 'https://www.freshskyai.com/pricing',
   };
-  var SUPPORT_URL = 'https://www.freshskyai.com/support';
+  var PRICING_URL = 'https://www.freshskyai.com/pricing';
 
   function track(event, params) {
     try {
@@ -46,14 +48,57 @@
   }
 
   function renderBar() {
-    // Top sign-in / Pro / Support bar stripped portfolio-wide 2026-05-11.
-    // Each app surfaces its own Support link inline in its content area.
-    // If a legacy bar exists in the DOM, hide it.
     var bar = document.getElementById('freemium-bar');
-    if (bar) {
-      bar.style.display = 'none';
-      document.body.style.paddingTop = '';
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'freemium-bar';
+      bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;' +
+        'display:flex;align-items:center;justify-content:flex-end;gap:10px;' +
+        'padding:6px 16px;background:rgba(10,14,39,0.92);' +
+        '-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);' +
+        'border-bottom:1px solid rgba(99,102,241,0.15);' +
+        'font-size:13px;color:#cbd5e1;' +
+        'font-family:Inter,system-ui,-apple-system,sans-serif;';
+      document.body.prepend(bar);
+      document.body.style.paddingTop = '38px';
     }
+    var proPill = '<a href="' + PRICING_URL + '" target="_blank" rel="noopener" ' +
+      'data-fs-event="upgrade_clicked" ' +
+      'style="display:inline-flex;align-items:center;gap:6px;' +
+      'background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;' +
+      'padding:4px 12px;border-radius:6px;text-decoration:none;font-weight:600;' +
+      'font-size:12.5px;box-shadow:0 0 12px rgba(99,102,241,0.4);">' +
+      '⚡ Get Pro $1.99/mo</a>';
+    if (STATE.logged_in && STATE.is_pro) {
+      bar.innerHTML =
+        '<span style="color:#94a3b8;">' + escapeHtml(STATE.name || STATE.email || '') + '</span>' +
+        '<span style="display:inline-flex;align-items:center;gap:4px;' +
+          'background:rgba(34,197,94,0.15);color:#4ade80;' +
+          'border:1px solid rgba(34,197,94,0.3);padding:3px 10px;border-radius:6px;' +
+          'font-weight:600;font-size:12px;">✓ Pro</span>' +
+        '<a href="/billing" style="color:#94a3b8;text-decoration:none;font-size:12.5px;">Manage</a>' +
+        '<a href="/logout" style="color:#64748b;text-decoration:none;font-size:12.5px;">Sign out</a>';
+      return;
+    }
+    if (STATE.logged_in) {
+      var usage = (STATE.usage_today != null && STATE.daily_limit)
+        ? '<span style="color:#94a3b8;font-size:12px;">' + STATE.usage_today + '/' + STATE.daily_limit + ' today</span>'
+        : '';
+      bar.innerHTML =
+        '<span style="color:#94a3b8;">' + escapeHtml(STATE.name || STATE.email || '') + '</span>' +
+        usage + proPill +
+        '<a href="/logout" style="color:#64748b;text-decoration:none;font-size:12.5px;">Sign out</a>';
+      return;
+    }
+    if (STATE.google_auth_enabled) {
+      bar.innerHTML = proPill +
+        '<a href="/auth/google" style="display:inline-flex;align-items:center;gap:6px;' +
+          'background:rgba(255,255,255,0.06);color:#cbd5e1;border:1px solid rgba(255,255,255,0.12);' +
+          'padding:4px 12px;border-radius:6px;text-decoration:none;font-size:12.5px;font-weight:500;">' +
+          '🔒 Sign in</a>';
+      return;
+    }
+    bar.innerHTML = proPill;
   }
 
   // Public: pages call this when their fetch returns, to render a friendly
@@ -63,22 +108,23 @@
 
     track('rate_limit_hit', { logged_in: !!STATE.logged_in });
 
-    var loginNudge = (!STATE.logged_in && STATE.google_auth_enabled)
-      ? ' Or <a href="/auth/google" style="color:#1a6cf5;text-decoration:underline;font-weight:600;">sign in with Google</a> for a higher daily limit.'
+    var signInNudge = (!STATE.logged_in && STATE.google_auth_enabled)
+      ? ' Or <a href="/auth/google" style="color:#6366f1;text-decoration:underline;font-weight:600;">sign in</a> for a higher daily cap.'
       : '';
     var html =
       '<div style="text-align:center;padding:24px;">' +
-        '<p style="font-size:18px;font-weight:600;margin-bottom:8px;">⏳ Slow down a bit</p>' +
-        '<p style="color:#475569;margin-bottom:16px;font-size:15px;line-height:1.5;">' +
-          "You hit the rate limit. Please wait a few minutes and try again." +
-          loginNudge +
+        '<p style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">⚡ Daily limit reached</p>' +
+        '<p style="color:#475569;margin-bottom:18px;font-size:15px;line-height:1.5;">' +
+          "You've hit today's free cap. Pro unlocks unlimited use across every Fresh Sky AI tool." +
+          signInNudge +
         '</p>' +
-        '<a href="' + SUPPORT_URL + '" data-fs-event="support_clicked" target="_blank" rel="noopener" ' +
-          'style="display:inline-block;background:#6366f1;color:#fff;padding:11px 26px;' +
-          'border-radius:6px;text-decoration:none;font-size:14px;font-weight:600;">' +
-          '💛 Support to help raise the cap' +
+        '<a href="' + PRICING_URL + '" data-fs-event="upgrade_clicked" target="_blank" rel="noopener" ' +
+          'style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#6366f1,#8b5cf6);' +
+          'color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14.5px;font-weight:600;' +
+          'box-shadow:0 4px 20px rgba(99,102,241,0.35);">' +
+          '⚡ Get Pro — $1.99/mo or $19.99/yr' +
         '</a>' +
-        '<p style="margin-top:12px;color:#94a3b8;font-size:12px;">Every Fresh Sky AI tool is free. Donations cover the running cost.</p>' +
+        '<p style="margin-top:12px;color:#94a3b8;font-size:12px;">One subscription unlocks every Fresh Sky AI tool.</p>' +
       '</div>';
     if (outputElement) outputElement.innerHTML = html;
     refresh();
@@ -131,10 +177,10 @@
         'margin-top:32px;background:#f8fafc;';
       d.innerHTML =
         'Part of <a href="https://www.freshskyai.com/" target="_blank" rel="noopener" ' +
-          'style="color:#1a6cf5;text-decoration:none;font-weight:600;">Fresh Sky AI</a> · ' +
-        '<a href="https://www.freshskyai.com/support" target="_blank" rel="noopener" ' +
-          'data-fs-event="support_clicked" ' +
-          'style="color:#64748b;text-decoration:underline;">💛 Support</a>';
+          'style="color:#6366f1;text-decoration:none;font-weight:600;">Fresh Sky AI</a> · ' +
+        '<a href="' + PRICING_URL + '" target="_blank" rel="noopener" ' +
+          'data-fs-event="upgrade_clicked" ' +
+          'style="color:#6366f1;text-decoration:underline;font-weight:500;">⚡ Get Pro</a>';
       document.body.appendChild(d);
     } catch (e) {}
   }

@@ -214,13 +214,27 @@ def register_freemium(
 
     @app.route('/subscribe')
     def freemium_subscribe():
-        # Free-everywhere mode: there is no Pro tier anymore. Every
-        # /subscribe request goes to the hub /support donation page.
-        return redirect('https://www.freshskyai.com/support', code=302)
+        # Pro tier restored 2026-05-11. Sub-apps forward to the hub
+        # pricing page; the hub runs Stripe Checkout locally.
+        if not _is_hub_request():
+            return redirect('https://www.freshskyai.com/pricing', code=302)
+        if not stripe_enabled or not stripe_price_monthly:
+            return redirect('https://www.freshskyai.com/pricing', code=302)
+        email = session.get('user_email')
+        if not email:
+            return redirect(url_for('freemium_google_login', next='/subscribe'))
+        return _open_checkout(stripe_secret_key, stripe_price_monthly, email, primary_url)
 
     @app.route('/subscribe/yearly')
     def freemium_subscribe_yearly():
-        return redirect('https://www.freshskyai.com/support', code=302)
+        if not _is_hub_request():
+            return redirect('https://www.freshskyai.com/pricing', code=302)
+        if not stripe_enabled or not stripe_price_yearly:
+            return redirect('https://www.freshskyai.com/pricing', code=302)
+        email = session.get('user_email')
+        if not email:
+            return redirect(url_for('freemium_google_login', next='/subscribe/yearly'))
+        return _open_checkout(stripe_secret_key, stripe_price_yearly, email, primary_url)
 
     @app.route('/billing')
     def freemium_billing_portal():
@@ -340,20 +354,27 @@ def register_freemium(
     # ─── USER STATUS API ─────────────────────────────────────────
     @app.route('/api/user-status')
     def freemium_user_status():
-        # Free-everywhere mode: no Pro distinction, no daily limit.
-        # `daily_limit: 0` signals to freemium.js that there is no cap.
+        # Pro tier restored 2026-05-11. $1.99/mo or $19.99/yr unlocks unlimited.
+        email = (session.get('user_email') or '').lower()
+        is_owner = bool(owner_email and email == owner_email.lower())
+        is_pro = is_owner or bool(session.get('is_pro'))
+        if is_pro:
+            limit = 2000
+        elif email:
+            limit = max(free_daily_limit * 2, 20)
+        else:
+            limit = free_daily_limit
         base = {
-            'logged_in': bool(session.get('user_email')),
+            'logged_in': bool(email),
             'google_auth_enabled': google_auth_enabled,
-            'is_pro': True,            # legacy field; everyone is "Pro" (free)
-            'free_everywhere': True,   # new flag for updated UIs
-            'usage_today': 0,
-            'daily_limit': 0,          # 0 = unlimited
-            'stripe_enabled': False,
-            'donation_url': 'https://www.freshskyai.com/support',
+            'is_pro': is_pro,
+            'usage_today': 0,  # exact count not tracked here; rate-limit middleware enforces
+            'daily_limit': limit,
+            'stripe_enabled': bool(stripe_enabled),
+            'pricing_url': 'https://www.freshskyai.com/pricing',
         }
-        if session.get('user_email'):
-            base['email'] = session['user_email']
+        if email:
+            base['email'] = email
             base['name'] = session.get('user_name', '')
         return jsonify(base)
 
