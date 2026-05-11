@@ -46,51 +46,14 @@
   }
 
   function renderBar() {
+    // Top sign-in / Pro / Support bar stripped portfolio-wide 2026-05-11.
+    // Each app surfaces its own Support link inline in its content area.
+    // If a legacy bar exists in the DOM, hide it.
     var bar = document.getElementById('freemium-bar');
-    if (!bar) {
-      bar = document.createElement('div');
-      bar.id = 'freemium-bar';
-      bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;' +
-        'display:flex;align-items:center;justify-content:flex-end;gap:10px;' +
-        'padding:6px 16px;background:rgba(255,255,255,.95);' +
-        'backdrop-filter:blur(6px);border-bottom:1px solid #e2e8f0;' +
-        'font-size:13px;font-family:system-ui,-apple-system,sans-serif;';
-      document.body.prepend(bar);
-      document.body.style.paddingTop = '40px';
-    }
-
-    var support =
-      '<a href="' + SUPPORT_URL + '" target="_blank" rel="noopener" ' +
-      'data-fs-event="support_clicked" ' +
-      'style="color:#6366f1;text-decoration:none;font-weight:500;">💛 Support</a>';
-
-    if (STATE.logged_in) {
-      bar.innerHTML =
-        '<span style="color:#64748b;">' +
-          escapeHtml(STATE.name || STATE.email || '') +
-        '</span>' +
-        support +
-        '<a href="/logout" style="color:#94a3b8;text-decoration:none;">Sign out</a>';
-      return;
-    }
-
-    var loginBtn = STATE.google_auth_enabled
-      ? '<a href="/auth/google" ' +
-          'style="display:inline-flex;align-items:center;gap:6px;' +
-          'background:#4285f4;color:#fff;padding:5px 14px;border-radius:4px;' +
-          'text-decoration:none;font-size:13px;font-weight:500;" ' +
-          'title="Optional — sign in to get a higher daily rate limit">' +
-          '🔒 Sign in</a>'
-      : '';
-
-    if (!loginBtn) {
-      // No login + no Pro means there's nothing useful to show — hide the bar
-      // entirely so we don't leave a 40px-tall empty strip on every page.
+    if (bar) {
       bar.style.display = 'none';
       document.body.style.paddingTop = '';
-      return;
     }
-    bar.innerHTML = loginBtn + support;
   }
 
   // Public: pages call this when their fetch returns, to render a friendly
