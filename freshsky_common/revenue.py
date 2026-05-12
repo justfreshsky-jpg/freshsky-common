@@ -440,6 +440,8 @@ table tr:hover td{background:rgba(255,255,255,0.04)!important}
 a{color:#a78bfa}
 a:hover{color:#c4b5fd}
 .disclaimer,.cta-footnote{color:var(--fs-mute)!important}
+/* Agent widget philosophy second-line — sits under the tagline */
+.fs-agent-philosophy{font-size:11px;color:#94a3b8;margin:4px 0 0;line-height:1.45;font-style:italic;letter-spacing:.01em}
 /* Tabs (EduSafeAI-style) */
 .tabs button{background:rgba(255,255,255,0.04)!important;color:var(--fs-fg)!important;border:1px solid var(--fs-border)!important}
 .tabs button.active{background:linear-gradient(135deg,var(--fs-accent),var(--fs-accent2))!important;color:#fff!important;border-color:transparent!important}
