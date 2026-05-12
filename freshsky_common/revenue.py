@@ -528,3 +528,23 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
             'app_slug': slug,
             'app_brand': brand,
         }
+
+    # Inject the futuristic dark skin into every HTML response, regardless
+    # of whether the template renders {{ og_tags|safe }}. Idempotent: skips
+    # if the skin marker is already in the body (e.g., when og_tags is rendered).
+    @app.after_request
+    def _inject_skin(response):
+        ct = (response.content_type or '').lower()
+        if 'text/html' not in ct:
+            return response
+        if getattr(response, 'direct_passthrough', False):
+            return response  # streamed response; don't touch
+        try:
+            body = response.get_data(as_text=True)
+        except Exception:
+            return response
+        if 'fs-portfolio-skin' in body or '</head>' not in body:
+            return response
+        new = body.replace('</head>', _FUTURISTIC_SKIN_CSS + '</head>', 1)
+        response.set_data(new)
+        return response
