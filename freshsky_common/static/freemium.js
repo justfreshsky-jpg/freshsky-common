@@ -22,9 +22,12 @@
     is_pro: false, logged_in: false,
     google_auth_enabled: false,
     usage_today: 0, daily_limit: 10,
+    community_mode: false,
     pricing_url: 'https://www.freshskyai.com/pricing',
+    donate_url: 'https://www.freshskyai.com/donate',
   };
   var PRICING_URL = 'https://www.freshskyai.com/pricing';
+  var DONATE_URL = 'https://www.freshskyai.com/donate';
 
   function track(event, params) {
     try {
@@ -62,13 +65,22 @@
       document.body.prepend(bar);
       document.body.style.paddingTop = '38px';
     }
-    var proPill = '<a href="' + PRICING_URL + '" target="_blank" rel="noopener" ' +
-      'data-fs-event="upgrade_clicked" ' +
-      'style="display:inline-flex;align-items:center;gap:6px;' +
-      'background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;' +
-      'padding:4px 12px;border-radius:6px;text-decoration:none;font-weight:600;' +
-      'font-size:12.5px;box-shadow:0 0 12px rgba(99,102,241,0.4);">' +
-      '⚡ Get Pro $1.99/mo</a>';
+    var cta = STATE.community_mode
+      ? '<a href="' + DONATE_URL + '" target="_blank" rel="noopener" ' +
+        'data-fs-event="donate_clicked" ' +
+        'style="display:inline-flex;align-items:center;gap:6px;' +
+        'background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#0f172a;' +
+        'padding:4px 12px;border-radius:6px;text-decoration:none;font-weight:700;' +
+        'font-size:12.5px;box-shadow:0 0 12px rgba(251,191,36,0.4);">' +
+        '💛 Donate</a>'
+      : '<a href="' + PRICING_URL + '" target="_blank" rel="noopener" ' +
+        'data-fs-event="upgrade_clicked" ' +
+        'style="display:inline-flex;align-items:center;gap:6px;' +
+        'background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;' +
+        'padding:4px 12px;border-radius:6px;text-decoration:none;font-weight:600;' +
+        'font-size:12.5px;box-shadow:0 0 12px rgba(99,102,241,0.4);">' +
+        '⚡ Get Pro $1.99/mo</a>';
+    var proPill = cta;
     if (STATE.logged_in && STATE.is_pro) {
       bar.innerHTML =
         '<span style="color:#94a3b8;">' + escapeHtml(STATE.name || STATE.email || '') + '</span>' +
@@ -111,21 +123,40 @@
     var signInNudge = (!STATE.logged_in && STATE.google_auth_enabled)
       ? ' Or <a href="/auth/google" style="color:#6366f1;text-decoration:underline;font-weight:600;">sign in</a> for a higher daily cap.'
       : '';
-    var html =
-      '<div style="text-align:center;padding:24px;">' +
-        '<p style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">⚡ Daily limit reached</p>' +
-        '<p style="color:#475569;margin-bottom:18px;font-size:15px;line-height:1.5;">' +
-          "You've hit today's free cap. Pro unlocks unlimited use across every Fresh Sky AI tool." +
-          signInNudge +
-        '</p>' +
-        '<a href="' + PRICING_URL + '" data-fs-event="upgrade_clicked" target="_blank" rel="noopener" ' +
-          'style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#6366f1,#8b5cf6);' +
-          'color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14.5px;font-weight:600;' +
-          'box-shadow:0 4px 20px rgba(99,102,241,0.35);">' +
-          '⚡ Get Pro — $1.99/mo or $19.99/yr' +
-        '</a>' +
-        '<p style="margin-top:12px;color:#94a3b8;font-size:12px;">One subscription unlocks every Fresh Sky AI tool.</p>' +
-      '</div>';
+    var html;
+    if (STATE.community_mode) {
+      html =
+        '<div style="text-align:center;padding:24px;">' +
+          '<p style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">⏳ Daily limit reached</p>' +
+          '<p style="color:#475569;margin-bottom:18px;font-size:15px;line-height:1.5;">' +
+            "Free for fire/EMS, CAP, CERT, CASA — always. Try again tomorrow, or a one-time donation keeps the tool running." +
+            signInNudge +
+          '</p>' +
+          '<a href="' + DONATE_URL + '" data-fs-event="donate_clicked" target="_blank" rel="noopener" ' +
+            'style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#fbbf24,#f59e0b);' +
+            'color:#0f172a;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14.5px;font-weight:700;' +
+            'box-shadow:0 4px 20px rgba(251,191,36,0.35);">' +
+            '💛 Donate to keep this free' +
+          '</a>' +
+          '<p style="margin-top:12px;color:#94a3b8;font-size:12px;">These civic tools stay 100% free for the people who show up.</p>' +
+        '</div>';
+    } else {
+      html =
+        '<div style="text-align:center;padding:24px;">' +
+          '<p style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">⚡ Daily limit reached</p>' +
+          '<p style="color:#475569;margin-bottom:18px;font-size:15px;line-height:1.5;">' +
+            "You've hit today's free cap. Pro unlocks unlimited use across every Fresh Sky AI tool." +
+            signInNudge +
+          '</p>' +
+          '<a href="' + PRICING_URL + '" data-fs-event="upgrade_clicked" target="_blank" rel="noopener" ' +
+            'style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#6366f1,#8b5cf6);' +
+            'color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14.5px;font-weight:600;' +
+            'box-shadow:0 4px 20px rgba(99,102,241,0.35);">' +
+            '⚡ Get Pro — $1.99/mo or $19.99/yr' +
+          '</a>' +
+          '<p style="margin-top:12px;color:#94a3b8;font-size:12px;">One subscription unlocks every Fresh Sky AI tool.</p>' +
+        '</div>';
+    }
     if (outputElement) outputElement.innerHTML = html;
     refresh();
     return true;

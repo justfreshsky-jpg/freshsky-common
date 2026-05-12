@@ -73,6 +73,7 @@ def register_freemium(
     pro_pricing_label: str = 'Pro',
     pro_monthly_dollars: str = '$1.99',
     pro_yearly_dollars: str = '$19',
+    community_mode: bool = False,
 ) -> Callable[[], Optional[Response]]:
     """Wire freemium routes onto ``app`` and return the gate function.
 
@@ -92,6 +93,14 @@ def register_freemium(
     primary_url = (primary_url or '').rstrip('/')
     redirect_uri = f'{primary_url}/auth/google/callback' if primary_url else ''
     owner_email = (owner_email or '').strip().lower()
+    # Community mode: civic-volunteer apps (NFIRS, CAPR, CAPMeeting, CAPStudy,
+    # FirstResponderHub, CAPHub) stay 100% free, no Pro upgrade pitch. Set
+    # via COMMUNITY_TOOL=true env var on the Cloud Run service. Shows a
+    # Donate CTA pointing to hub /donate instead of /pricing, and bumps
+    # the default free_daily_limit so volunteers don't hit caps.
+    community_mode = community_mode or os.environ.get('COMMUNITY_TOOL', '').lower() in ('1', 'true', 'yes')
+    if community_mode:
+        free_daily_limit = max(free_daily_limit, 50)  # generous cap for volunteers
 
     # Free-everywhere mode: enforce hard rate limits at the infrastructure
     # layer so abuse can't blow through free LLM tiers. Single call wires
@@ -379,7 +388,9 @@ def register_freemium(
             'usage_today': 0,  # exact count not tracked here; rate-limit middleware enforces
             'daily_limit': limit,
             'stripe_enabled': bool(stripe_enabled),
+            'community_mode': community_mode,
             'pricing_url': 'https://www.freshskyai.com/pricing',
+            'donate_url': 'https://www.freshskyai.com/donate',
         }
         if email:
             base['email'] = email
