@@ -45,6 +45,7 @@ quota slot.
 from __future__ import annotations
 
 import logging
+import os
 import secrets
 from datetime import date
 from typing import Callable, Optional
