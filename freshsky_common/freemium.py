@@ -93,14 +93,26 @@ def register_freemium(
     primary_url = (primary_url or '').rstrip('/')
     redirect_uri = f'{primary_url}/auth/google/callback' if primary_url else ''
     owner_email = (owner_email or '').strip().lower()
-    # Community mode: civic-volunteer apps (NFIRS, CAPR, CAPMeeting, CAPStudy,
-    # FirstResponderHub, CAPHub) stay 100% free, no Pro upgrade pitch. Set
-    # via COMMUNITY_TOOL=true env var on the Cloud Run service. Shows a
-    # Donate CTA pointing to hub /donate instead of /pricing, and bumps
-    # the default free_daily_limit so volunteers don't hit caps.
-    community_mode = community_mode or os.environ.get('COMMUNITY_TOOL', '').lower() in ('1', 'true', 'yes')
-    if community_mode:
-        free_daily_limit = max(free_daily_limit, 50)  # generous cap for volunteers
+    # Community mode: civic-volunteer apps stay 100% free, no Pro upgrade
+    # pitch. Three triggers (any one is enough):
+    #   1. register_freemium(..., community_mode=True) in app.py
+    #   2. COMMUNITY_TOOL=true env var on the Cloud Run service
+    #   3. Hostname auto-detection at request time (see below) — covers the
+    #      known civic-volunteer subdomains without per-app config.
+    _STATIC_COMMUNITY_HOSTS = {
+        'nfirs.freshskyai.com', 'capr.freshskyai.com',
+        'capmeeting.freshskyai.com', 'capstudy.freshskyai.com',
+        'firstresponder.freshskyai.com', 'cap.freshskyai.com',
+    }
+    community_mode_static = community_mode or os.environ.get('COMMUNITY_TOOL', '').lower() in ('1', 'true', 'yes')
+    if community_mode_static:
+        free_daily_limit = max(free_daily_limit, 50)
+
+    def _is_community_request() -> bool:
+        if community_mode_static:
+            return True
+        host = (request.host or '').split(':')[0].lower()
+        return host in _STATIC_COMMUNITY_HOSTS
 
     # Free-everywhere mode: enforce hard rate limits at the infrastructure
     # layer so abuse can't blow through free LLM tiers. Single call wires
@@ -388,7 +400,7 @@ def register_freemium(
             'usage_today': 0,  # exact count not tracked here; rate-limit middleware enforces
             'daily_limit': limit,
             'stripe_enabled': bool(stripe_enabled),
-            'community_mode': community_mode,
+            'community_mode': _is_community_request(),
             'pricing_url': 'https://www.freshskyai.com/pricing',
             'donate_url': 'https://www.freshskyai.com/donate',
         }
