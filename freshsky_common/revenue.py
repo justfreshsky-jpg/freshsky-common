@@ -395,6 +395,21 @@ def og_snippet(brand: str, primary_url: str, description: str = '') -> str:
     )
 
 
+_ASI_FOOTER_HTML = (
+    '<div id="fs-asi-line" role="contentinfo" '
+    'style="text-align:center;padding:18px 16px 24px;'
+    'font-size:11.5px;color:#64748b;letter-spacing:.03em;line-height:1.6;'
+    'font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;'
+    'border-top:1px solid rgba(99,102,241,.08);background:transparent;margin-top:0;">'
+    'Built for the AI decade · '
+    '<a href="https://www.freshskyai.com/future" target="_blank" rel="noopener" '
+    'style="color:#94a3b8;text-decoration:none;border-bottom:1px dotted rgba(148,163,184,.4)">'
+    'tools that ride the frontier and hand the hours back'
+    '</a>'
+    '</div>'
+)
+
+
 _FUTURISTIC_SKIN_CSS = """<style id="fs-portfolio-skin">
 /* Fresh Sky AI portfolio skin — futuristic dark theme overlay. Injected
    via freshsky_common.revenue.og_snippet so every batch app picks it up
@@ -548,5 +563,22 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
         if 'fs-portfolio-skin' in body or '</head>' not in body:
             return response
         new = body.replace('</head>', _FUTURISTIC_SKIN_CSS + '</head>', 1)
+        response.set_data(new)
+        return response
+
+    @app.after_request
+    def _inject_asi_footer(response):
+        ct = (response.content_type or '').lower()
+        if 'text/html' not in ct:
+            return response
+        if getattr(response, 'direct_passthrough', False):
+            return response
+        try:
+            body = response.get_data(as_text=True)
+        except Exception:
+            return response
+        if 'fs-asi-line' in body or '</body>' not in body:
+            return response
+        new = body.replace('</body>', _ASI_FOOTER_HTML + '</body>', 1)
         response.set_data(new)
         return response
