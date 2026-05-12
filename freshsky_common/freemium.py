@@ -129,18 +129,23 @@ def register_freemium(
     def freemium_google_login():
         if not google_auth_enabled:
             return jsonify(error='Google login is not configured.'), 503
-        if not redirect_uri:
-            return jsonify(error='primary_url is not set; cannot build redirect URI.'), 503
+        # Build redirect_uri from the CURRENT request host so the cookie
+        # set here (domain = request.host) is the same one read in the
+        # callback. Otherwise a user on www.freshskyai.com gets the
+        # callback at freshskyai.com (different cookie scope) and session
+        # state is lost. This fixes "click Pro → bounces back to /" bug.
+        dyn_redirect_uri = f'{request.scheme}://{request.host}/auth/google/callback'
         next_url = request.args.get('next', '')
         if next_url.startswith('/') and not next_url.startswith('//'):
             session['oauth_next'] = next_url
         else:
             session.pop('oauth_next', None)
+        session['oauth_redirect_uri'] = dyn_redirect_uri
         state = secrets.token_urlsafe(32)
         session['oauth_state'] = state
         params = urlencode({
             'client_id': google_client_id,
-            'redirect_uri': redirect_uri,
+            'redirect_uri': dyn_redirect_uri,
             'response_type': 'code',
             'scope': 'openid email profile',
             'state': state,
@@ -158,12 +163,15 @@ def register_freemium(
         state = request.args.get('state')
         if not code or state != session.pop('oauth_state', None):
             return redirect(url_for('index'))
+        # Use the same redirect_uri that was sent to Google during /auth/google,
+        # NOT the static primary_url-based one. They must match exactly.
+        token_redirect_uri = session.pop('oauth_redirect_uri', None) or redirect_uri
         try:
             tok = _r.post('https://oauth2.googleapis.com/token', data={
                 'code': code,
                 'client_id': google_client_id,
                 'client_secret': google_client_secret,
-                'redirect_uri': redirect_uri,
+                'redirect_uri': token_redirect_uri,
                 'grant_type': 'authorization_code',
             }, timeout=15)
             tok.raise_for_status()
@@ -405,20 +413,33 @@ def _open_checkout(secret_key: str, price_id: str, email: str, primary_url: str)
     try:
         import stripe
         stripe.api_key = secret_key
-        success_url = (primary_url or '') + '/?upgraded=1'
-        cancel_url = (primary_url or '') + '/'
+        base = (primary_url or '').rstrip('/') or 'https://www.freshskyai.com'
         checkout = stripe.checkout.Session.create(
             customer_email=email,
             mode='subscription',
             line_items=[{'price': price_id, 'quantity': 1}],
-            success_url=success_url,
-            cancel_url=cancel_url,
+            success_url=base + '/?upgraded=1',
+            cancel_url=base + '/pricing',
             allow_promotion_codes=True,
         )
         return redirect(checkout.url)
     except Exception as exc:
-        logger.error('Stripe checkout error: %s', exc)
-        return redirect('/')
+        logger.exception('Stripe checkout error: %s', exc)
+        return (
+            '<!DOCTYPE html><meta charset="utf-8"><title>Checkout error</title>'
+            '<body style="font-family:system-ui;background:#06091a;color:#e2e8f0;'
+            'min-height:100vh;display:flex;align-items:center;justify-content:center;'
+            'padding:24px;text-align:center;margin:0;">'
+            '<div style="max-width:480px;background:rgba(255,255,255,0.04);'
+            'border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:32px;">'
+            '<h1 style="margin:0 0 12px;color:#fff;">⚠ Checkout couldn\'t open</h1>'
+            f'<p style="color:#94a3b8;line-height:1.6;">{str(exc)[:200]}</p>'
+            '<p style="color:#94a3b8;line-height:1.6;font-size:13px;margin-top:14px;">'
+            'Email admin@freshskyllc.com and we\'ll resolve it within a day.</p>'
+            '<a href="/pricing" style="display:inline-block;margin-top:14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);'
+            'color:#fff;padding:10px 22px;border-radius:10px;text-decoration:none;font-weight:600;">Back to pricing</a>'
+            '</div></body>'
+        ), 502
 
 
 # ─── FIRESTORE PERSISTENCE ──────────────────────────────────────────
