@@ -17,13 +17,18 @@ DEFAULT_CSP = (
     # because these apps never render unsanitized user-supplied HTML.
     # googletagmanager.com is the GA4 loader; google-analytics.com is the
     # collection endpoint that gtag.js fetches.
+    # www.freshskyai.com is whitelisted so the portfolio-wide AI Planner
+    # widget script (served at https://www.freshskyai.com/static/planner.js)
+    # can load on every sub-app and its API fetches don't get blocked.
     "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com "
-    "https://www.googletagmanager.com https://www.google-analytics.com; "
+    "https://www.googletagmanager.com https://www.google-analytics.com "
+    "https://www.freshskyai.com; "
     "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
     "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
     "img-src 'self' data: https:; "
-    # connect-src needs google-analytics so gtag.js can POST events.
-    "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com; "
+    # connect-src needs google-analytics so gtag.js can POST events;
+    # www.freshskyai.com for the Planner's /api/planner cross-origin fetch.
+    "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.freshskyai.com; "
     "frame-ancestors 'none'; "
     "object-src 'none'; "
     "base-uri 'self'; "
@@ -65,6 +70,33 @@ def install_security_headers(
             )
         if request.path in no_store_paths:
             resp.headers["Cache-Control"] = "no-store"
+        return resp
+
+    # ── Portfolio-wide AI Planner widget injection ─────────────────────
+    # Adds a single <script> tag pointing at the hub-hosted widget. Self-
+    # contained and idempotent (the script itself guards against double-
+    # mount via window.__FS_PLANNER_LOADED__). Skipped on responses that
+    # aren't text/html, that don't have a </body>, or that already have
+    # the marker.
+    _PLANNER_SCRIPT = (
+        '<script src="https://www.freshskyai.com/static/planner.js" defer '
+        'id="fs-planner-loader"></script>'
+    )
+
+    @app.after_request
+    def _inject_planner(resp):
+        ct = (resp.content_type or "").lower()
+        if "text/html" not in ct:
+            return resp
+        if getattr(resp, "direct_passthrough", False):
+            return resp
+        try:
+            body = resp.get_data(as_text=True)
+        except Exception:
+            return resp
+        if "fs-planner-loader" in body or "</body>" not in body:
+            return resp
+        resp.set_data(body.replace("</body>", _PLANNER_SCRIPT + "</body>", 1))
         return resp
 
     return app
