@@ -101,6 +101,61 @@ def _via_mistral(system: str, user: str) -> Optional[str]:
         return None
 
 
+def _via_xai(system: str, user: str) -> Optional[str]:
+    # xAI Grok — US jurisdiction, OpenAI-compatible. Recurring credits up to
+    # ~$175/month via the data-sharing program (operator's prompt/output
+    # data trains Grok in exchange). Acceptable for operator-only tools;
+    # not for customer-facing apps. Default grok-2-1212 was retired —
+    # current production-stable model is grok-4-fast-non-reasoning.
+    key = os.environ.get("XAI_API_KEY")
+    if not key:
+        return None
+    raw = _http_post(
+        "https://api.x.ai/v1/chat/completions",
+        {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        {
+            "model": os.environ.get("XAI_MODEL", "grok-4-fast-non-reasoning"),
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            "temperature": 0.4,
+            "max_tokens": 2000,
+        },
+    )
+    if not raw:
+        return None
+    import json
+    try:
+        return json.loads(raw)["choices"][0]["message"]["content"]
+    except (KeyError, ValueError, IndexError):
+        return None
+
+
+def _via_nvidia(system: str, user: str) -> Optional[str]:
+    # NVIDIA NIM (build.nvidia.com / integrate.api.nvidia.com) — US,
+    # OpenAI-compatible. 1k starter credits + 4k on request; ongoing
+    # rate-limited free tier of 40 req/min. Hosts Llama 3.3 70B,
+    # Mistral, Phi, Gemma, and many others.
+    key = os.environ.get("NVIDIA_NIM_KEY")
+    if not key:
+        return None
+    raw = _http_post(
+        "https://integrate.api.nvidia.com/v1/chat/completions",
+        {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        {
+            "model": os.environ.get("NVIDIA_NIM_MODEL", "meta/llama-3.3-70b-instruct"),
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            "temperature": 0.4,
+            "max_tokens": 2000,
+        },
+    )
+    if not raw:
+        return None
+    import json
+    try:
+        return json.loads(raw)["choices"][0]["message"]["content"]
+    except (KeyError, ValueError, IndexError):
+        return None
+
+
 def _via_codestral(system: str, user: str) -> Optional[str]:
     # Mistral Codestral — separate free tier from La Plateforme: 30 req/min,
     # 2,000 req/day, commercial use EXPLICITLY allowed (the main Mistral
@@ -261,10 +316,12 @@ def _via_huggingface(system: str, user: str) -> Optional[str]:
 DEFAULT_PROVIDERS: List[Callable[[str, str], Optional[str]]] = [
     _via_groq,
     _via_cerebras,
+    _via_nvidia,
     _via_mistral,
     _via_codestral,
     _via_sambanova,
     _via_cloudflare,
+    _via_xai,
     _via_openrouter,
     _via_llm7,
     _via_huggingface,
