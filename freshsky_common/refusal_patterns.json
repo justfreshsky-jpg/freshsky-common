@@ -1,0 +1,59 @@
+{
+  "_version": 1,
+  "_doc": "Lexical refusal patterns. Categories map to lists of regex patterns (case-insensitive) that, when matched against a user's input, trigger a soft 422 refusal with a handoff link. Survives any frontier model upgrade because the filter runs BEFORE the LLM. Tune patterns here without touching code.",
+
+  "high_stakes_form_fill": {
+    "description": "User asks to fill in or generate exact form text for a high-stakes government / legal form. We draft GUIDANCE but never the form's official text itself.",
+    "handoff": {
+      "label": "Find an immigration attorney or accredited representative",
+      "url": "https://www.lawhelp.org/find-help"
+    },
+    "patterns": [
+      "(?i)\\b(fill\\s+(out|in)|complete|generate|draft|write)\\b.{0,30}\\b(i-?130|i-?485|i-?751|i-?765|i-?864|i-?601|n-?400|n-?600|ds-?260|ds-?160)\\b",
+      "(?i)\\b(fill\\s+(out|in)|complete|generate|draft)\\b.{0,40}\\b(uscis|immigration)\\b.{0,20}\\bform\\b",
+      "(?i)\\b(fill\\s+(out|in)|complete|generate)\\b.{0,30}\\b(form|return|schedule)\\b.{0,30}\\b(1040|1099|w-?2|w-?4|w-?9|941|1120|1065|706|709)\\b",
+      "(?i)\\b(fill|complete|generate)\\b.{0,30}\\b(irs|tax)\\b.{0,20}\\bform\\b",
+      "(?i)\\b(fill\\s+(out|in)|complete)\\b.{0,30}\\b(ssa|social\\s+security)\\b.{0,20}\\bform\\b"
+    ]
+  },
+
+  "medical_diagnosis": {
+    "description": "User asks for a specific medical diagnosis, drug dose, or treatment recommendation. We never act as a medical professional.",
+    "handoff": {
+      "label": "Call 988 (mental health crisis) or 211 (general) — both free",
+      "url": "https://988lifeline.org/"
+    },
+    "patterns": [
+      "(?i)\\b(diagnose|diagnosis|what.{0,5}wrong\\s+with\\s+me|do\\s+i\\s+have)\\b",
+      "(?i)\\b(prescribe|prescription|what\\s+(dose|dosage)|how\\s+(much|many)\\s+(mg|mcg|pills|tablets))\\b",
+      "(?i)\\bshould\\s+i\\s+(take|stop|switch)\\b.{0,30}\\b(medication|medicine|pill|drug|insulin|antibiotic)\\b",
+      "(?i)\\bcan\\s+i\\s+(take|combine|mix)\\b.{0,30}\\b(with|and)\\b.{0,30}\\b(medication|medicine|pill)\\b"
+    ]
+  },
+
+  "legal_advice_act": {
+    "description": "User asks for specific legal advice on a live case (not educational guidance). We provide educational drafts only and refuse 'should I plead', 'will I win'.",
+    "handoff": {
+      "label": "Free legal aid (LawHelp.org) by state",
+      "url": "https://www.lawhelp.org/"
+    },
+    "patterns": [
+      "(?i)\\b(should\\s+i\\s+plead|plead\\s+(guilty|not\\s+guilty)|admit\\s+guilt)\\b",
+      "(?i)\\b(will\\s+i\\s+win|will\\s+i\\s+lose|am\\s+i\\s+guilty|am\\s+i\\s+going\\s+to\\s+jail)\\b",
+      "(?i)\\bwhat\\s+sentence\\s+will\\s+i\\s+get\\b"
+    ]
+  },
+
+  "auto_action_high_stakes": {
+    "description": "User asks the AI to actually SUBMIT / FILE a form, SEND a message, MAKE a payment — anything that crosses from drafting into acting. We never auto-act on consequential decisions.",
+    "handoff": {
+      "label": "Review the draft yourself, then submit through the official portal",
+      "url": null
+    },
+    "patterns": [
+      "(?i)\\b(submit|file|send|mail|fax|post|upload)\\b.{0,30}\\b(form|application|petition|claim|appeal|return|complaint|filing)\\b.{0,30}\\b(for\\s+me|on\\s+my\\s+behalf|automatically)\\b",
+      "(?i)\\b(make\\s+the\\s+payment|pay\\s+the\\s+fee|charge\\s+my\\s+card|process\\s+payment)\\b",
+      "(?i)\\b(call|contact|email)\\b.{0,30}\\b(the\\s+agency|uscis|irs|ssa|dmv|court)\\b.{0,30}\\b(for\\s+me|on\\s+my\\s+behalf)\\b"
+    ]
+  }
+}
