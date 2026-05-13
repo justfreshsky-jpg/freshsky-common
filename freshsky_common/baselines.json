@@ -24,7 +24,7 @@
   "probatewalk":       { "tool1": 60, "tool2": 60 },
   "reentryhelp":       { "tool1": 50, "tool2": 50 },
   "safetyplanai":      { "tool1": 30 },
-  "section8":          { "tool1": 35, "tool2": 30 },
+  "section8nav":       { "tool1": 35, "tool2": 30 },
   "seniorbenefits":    { "tool1": 35 },
   "smallclaimsus":     { "tool1": 50, "tool2": 40 },
   "snapcheck":         { "tool1": 30, "tool2": 40 },
