@@ -78,29 +78,6 @@ def _via_cerebras(system: str, user: str) -> Optional[str]:
         return None
 
 
-def _via_gemini(system: str, user: str) -> Optional[str]:
-    key = os.environ.get("GEMINI_API_KEY")
-    if not key:
-        return None
-    model = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash")
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
-    raw = _http_post(
-        url,
-        {"Content-Type": "application/json"},
-        {
-            "contents": [{"role": "user", "parts": [{"text": f"{system}\n\n{user}"}]}],
-            "generationConfig": {"temperature": 0.4, "maxOutputTokens": 2000},
-        },
-    )
-    if not raw:
-        return None
-    import json
-    try:
-        return json.loads(raw)["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, ValueError, IndexError):
-        return None
-
-
 def _via_mistral(system: str, user: str) -> Optional[str]:
     key = os.environ.get("MISTRAL_API_KEY")
     if not key:
@@ -124,20 +101,19 @@ def _via_mistral(system: str, user: str) -> Optional[str]:
         return None
 
 
-def _via_github_models(system: str, user: str) -> Optional[str]:
-    # GitHub Models (Azure-hosted) — OpenAI-compatible, free with a GitHub PAT.
-    # Generous rate limits per account, commercial use OK on Copilot Pro+.
-    # Default model is gpt-4o-mini (fast, cheap on Azure's free quota); override
-    # with GITHUB_MODELS_MODEL for Llama-3.3-70B-Instruct, Phi-4, Mistral-large,
-    # etc. — see https://github.com/marketplace/models for the full catalog.
-    key = os.environ.get("GITHUB_MODELS_KEY") or os.environ.get("GITHUB_TOKEN")
+def _via_sambanova(system: str, user: str) -> Optional[str]:
+    # SambaNova Cloud — RDU-accelerated, OpenAI-compatible, persistent free tier.
+    # Default model is Meta-Llama-3.3-70B-Instruct (confirmed active May 2026);
+    # earlier Llama-3.1-8B/70B/405B-Instruct were deprecated. Override with
+    # SAMBANOVA_MODEL for Llama-4-Maverick-17B-128E-Instruct etc.
+    key = os.environ.get("SAMBANOVA_API_KEY")
     if not key:
         return None
     raw = _http_post(
-        "https://models.inference.ai.azure.com/chat/completions",
+        "https://api.sambanova.ai/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
-            "model": os.environ.get("GITHUB_MODELS_MODEL", "gpt-4o-mini"),
+            "model": os.environ.get("SAMBANOVA_MODEL", "Meta-Llama-3.3-70B-Instruct"),
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.4,
             "max_tokens": 2000,
@@ -200,9 +176,8 @@ def _via_huggingface(system: str, user: str) -> Optional[str]:
 DEFAULT_PROVIDERS: List[Callable[[str, str], Optional[str]]] = [
     _via_groq,
     _via_cerebras,
-    _via_gemini,
     _via_mistral,
-    _via_github_models,
+    _via_sambanova,
     _via_openrouter,
     _via_huggingface,
 ]
