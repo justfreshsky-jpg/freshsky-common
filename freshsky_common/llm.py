@@ -101,6 +101,33 @@ def _via_mistral(system: str, user: str) -> Optional[str]:
         return None
 
 
+def _via_codestral(system: str, user: str) -> Optional[str]:
+    # Mistral Codestral — separate free tier from La Plateforme: 30 req/min,
+    # 2,000 req/day, commercial use EXPLICITLY allowed (the main Mistral
+    # free tier requires a data-training opt-in for commercial). Coding-
+    # tuned but handles general text fine. EU jurisdiction.
+    key = os.environ.get("CODESTRAL_API_KEY")
+    if not key:
+        return None
+    raw = _http_post(
+        "https://codestral.mistral.ai/v1/chat/completions",
+        {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        {
+            "model": os.environ.get("CODESTRAL_MODEL", "codestral-latest"),
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            "temperature": 0.4,
+            "max_tokens": 2000,
+        },
+    )
+    if not raw:
+        return None
+    import json
+    try:
+        return json.loads(raw)["choices"][0]["message"]["content"]
+    except (KeyError, ValueError, IndexError):
+        return None
+
+
 def _via_sambanova(system: str, user: str) -> Optional[str]:
     # SambaNova Cloud — RDU-accelerated, OpenAI-compatible, persistent free tier.
     # Default model is Meta-Llama-3.3-70B-Instruct (confirmed active May 2026);
@@ -235,6 +262,7 @@ DEFAULT_PROVIDERS: List[Callable[[str, str], Optional[str]]] = [
     _via_groq,
     _via_cerebras,
     _via_mistral,
+    _via_codestral,
     _via_sambanova,
     _via_cloudflare,
     _via_openrouter,
