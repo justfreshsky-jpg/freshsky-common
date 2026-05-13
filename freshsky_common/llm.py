@@ -120,6 +120,34 @@ def _via_mistral(system: str, user: str) -> Optional[str]:
         return None
 
 
+def _via_github_models(system: str, user: str) -> Optional[str]:
+    # GitHub Models (Azure-hosted) — OpenAI-compatible, free with a GitHub PAT.
+    # Generous rate limits per account, commercial use OK on Copilot Pro+.
+    # Default model is gpt-4o-mini (fast, cheap on Azure's free quota); override
+    # with GITHUB_MODELS_MODEL for Llama-3.3-70B-Instruct, Phi-4, Mistral-large,
+    # etc. — see https://github.com/marketplace/models for the full catalog.
+    key = os.environ.get("GITHUB_MODELS_KEY") or os.environ.get("GITHUB_TOKEN")
+    if not key:
+        return None
+    raw = _http_post(
+        "https://models.inference.ai.azure.com/chat/completions",
+        {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        {
+            "model": os.environ.get("GITHUB_MODELS_MODEL", "gpt-4o-mini"),
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            "temperature": 0.4,
+            "max_tokens": 2000,
+        },
+    )
+    if not raw:
+        return None
+    import json
+    try:
+        return json.loads(raw)["choices"][0]["message"]["content"]
+    except (KeyError, ValueError, IndexError):
+        return None
+
+
 def _via_openrouter(system: str, user: str) -> Optional[str]:
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
@@ -170,6 +198,7 @@ DEFAULT_PROVIDERS: List[Callable[[str, str], Optional[str]]] = [
     _via_cerebras,
     _via_gemini,
     _via_mistral,
+    _via_github_models,
     _via_openrouter,
     _via_huggingface,
 ]
