@@ -128,6 +128,36 @@ def _via_sambanova(system: str, user: str) -> Optional[str]:
         return None
 
 
+def _via_cloudflare(system: str, user: str) -> Optional[str]:
+    # Cloudflare Workers AI — OpenAI-compatible endpoint, US jurisdiction,
+    # permanent free tier of 10,000 neurons/day. Needs both an API token
+    # and the account ID (the latter is embedded in the URL). Default
+    # model is Llama 3.1 8B Instruct — small, fast, cheap on neurons;
+    # override via CLOUDFLARE_MODEL for @cf/meta/llama-3.3-70b-instruct-fp8-fast
+    # or @cf/google/gemma-7b-it etc. when the task wants more capability.
+    key = os.environ.get("CLOUDFLARE_API_KEY")
+    account = os.environ.get("CLOUDFLARE_ACCOUNT_ID")
+    if not key or not account:
+        return None
+    raw = _http_post(
+        f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1/chat/completions",
+        {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        {
+            "model": os.environ.get("CLOUDFLARE_MODEL", "@cf/meta/llama-3.1-8b-instruct"),
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            "temperature": 0.4,
+            "max_tokens": 2000,
+        },
+    )
+    if not raw:
+        return None
+    import json
+    try:
+        return json.loads(raw)["choices"][0]["message"]["content"]
+    except (KeyError, ValueError, IndexError):
+        return None
+
+
 def _via_llm7(system: str, user: str) -> Optional[str]:
     # LLM7.io — UK-based aggregator, donor-supported free tier (30 rpm
     # anonymous, 120 rpm with token). OpenAI-compatible. The router picks
@@ -206,6 +236,7 @@ DEFAULT_PROVIDERS: List[Callable[[str, str], Optional[str]]] = [
     _via_cerebras,
     _via_mistral,
     _via_sambanova,
+    _via_cloudflare,
     _via_openrouter,
     _via_llm7,
     _via_huggingface,
