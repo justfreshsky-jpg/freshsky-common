@@ -128,6 +128,34 @@ def _via_sambanova(system: str, user: str) -> Optional[str]:
         return None
 
 
+def _via_llm7(system: str, user: str) -> Optional[str]:
+    # LLM7.io — UK-based aggregator, donor-supported free tier (30 rpm
+    # anonymous, 120 rpm with token). OpenAI-compatible. The router picks
+    # the best available model regardless of what we ask for, so the
+    # "model" field is more of a hint than a constraint. No production
+    # SLA, but useful as a tail fallback when first-tier providers cap.
+    key = os.environ.get("LLM7_API_KEY")
+    if not key:
+        return None
+    raw = _http_post(
+        "https://api.llm7.io/v1/chat/completions",
+        {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        {
+            "model": os.environ.get("LLM7_MODEL", "gpt-4o-mini"),
+            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            "temperature": 0.4,
+            "max_tokens": 2000,
+        },
+    )
+    if not raw:
+        return None
+    import json
+    try:
+        return json.loads(raw)["choices"][0]["message"]["content"]
+    except (KeyError, ValueError, IndexError):
+        return None
+
+
 def _via_openrouter(system: str, user: str) -> Optional[str]:
     key = os.environ.get("OPENROUTER_API_KEY")
     if not key:
@@ -179,6 +207,7 @@ DEFAULT_PROVIDERS: List[Callable[[str, str], Optional[str]]] = [
     _via_mistral,
     _via_sambanova,
     _via_openrouter,
+    _via_llm7,
     _via_huggingface,
 ]
 
