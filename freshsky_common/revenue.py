@@ -126,6 +126,17 @@ def register_seo_routes(app: Flask, slug: str, brand: str, primary_url: str) -> 
             mimetype='text/plain',
         )
 
+    # IndexNow key file — published at the path /<key>.txt so Bing/Yandex
+    # can verify domain ownership before accepting indexing pings. Same key
+    # is used across the entire Fresh Sky portfolio (cross-host indexing is
+    # explicitly supported by the spec). Rotate by changing the constant
+    # below and re-deploying all apps.
+    _INDEXNOW_KEY = '45938110f3800b6fc6e260f67d9cd34d'
+
+    @app.route(f'/{_INDEXNOW_KEY}.txt')
+    def _indexnow_key():
+        return Response(_INDEXNOW_KEY, mimetype='text/plain')
+
 
 def ga4_snippet(measurement_id: Optional[str] = None) -> str:
     """Returns the GA4 HTML snippet ready to inject into <head>.
