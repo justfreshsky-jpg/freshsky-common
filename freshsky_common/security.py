@@ -9,6 +9,21 @@ from typing import Optional
 from flask import request
 
 
+_ASI_FOOTER_HTML = (
+    '<div id="fs-asi-line" role="contentinfo" '
+    'style="text-align:center;padding:18px 16px 24px;'
+    'font-size:11.5px;color:#64748b;letter-spacing:.03em;line-height:1.6;'
+    'font-family:-apple-system,BlinkMacSystemFont,\'Segoe UI\',sans-serif;'
+    'border-top:1px solid rgba(99,102,241,.08);background:transparent;margin-top:0;">'
+    'Built for the AI decade · '
+    '<a href="https://www.freshskyai.com/future" target="_blank" rel="noopener" '
+    'style="color:#94a3b8;text-decoration:none;border-bottom:1px dotted rgba(148,163,184,.4)">'
+    'tools that ride the frontier and hand the hours back'
+    '</a>'
+    '</div>'
+)
+
+
 DEFAULT_CSP = (
     "default-src 'self'; "
     # 'unsafe-inline' is needed because every batch app's button click handlers
@@ -65,6 +80,22 @@ def install_security_headers(
             )
         if request.path in no_store_paths:
             resp.headers["Cache-Control"] = "no-store"
+        return resp
+
+    @app.after_request
+    def _inject_asi_footer(resp):
+        ct = (resp.content_type or "").lower()
+        if "text/html" not in ct:
+            return resp
+        if getattr(resp, "direct_passthrough", False):
+            return resp
+        try:
+            body = resp.get_data(as_text=True)
+        except Exception:
+            return resp
+        if "fs-asi-line" in body or "</body>" not in body:
+            return resp
+        resp.set_data(body.replace("</body>", _ASI_FOOTER_HTML + "</body>", 1))
         return resp
 
     return app
