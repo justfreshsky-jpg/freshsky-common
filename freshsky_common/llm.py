@@ -59,7 +59,11 @@ def _via_cerebras(system: str, user: str) -> Optional[str]:
         "https://api.cerebras.ai/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
-            "model": os.environ.get("CEREBRAS_MODEL", "llama-3.3-70b"),
+            # Cerebras free tier currently serves llama-3.1-8b + gpt-oss-120b.
+            # llama-3.3-70b was removed; using it returns 404 silently. Keep
+            # the small fast model as default so the chain doesn't burn a
+            # round-trip on every call before falling through.
+            "model": os.environ.get("CEREBRAS_MODEL", "llama-3.1-8b"),
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.4,
             "max_tokens": 2000,
