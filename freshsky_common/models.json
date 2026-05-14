@@ -1,7 +1,7 @@
 {
   "_comment": "Frontier-model registry. Per-provider current preferred model name. The LLM chain falls back to these defaults when the corresponding *_MODEL env var is not set. A nightly GH Actions workflow (see .github/workflows/model-upgrade.yml in the freshsky-common repo) queries each provider's catalog, proposes upgrades, and opens a PR for operator review. No auto-merge — operator decides. The registry is read by env-override pattern: set GROQ_MODEL=foo on a Cloud Run service to override; otherwise the chain reads from here. Keep this in sync with the defaults in llm.py.",
 
-  "updated_at": "2026-05-14",
+  "updated_at": "2026-05-14-late",
 
   "providers": {
     "groq": {
@@ -69,7 +69,7 @@
     },
     "huggingface": {
       "env_var": "HF_MODEL",
-      "current": "meta-llama/Meta-Llama-3-8B-Instruct",
+      "current": "meta-llama/Llama-3.1-8B-Instruct",
       "catalog_url": "https://huggingface.co/api/models",
       "prefer_size": "8b",
       "notes": "Inference API; lower latency on smaller models. Last in chain."
