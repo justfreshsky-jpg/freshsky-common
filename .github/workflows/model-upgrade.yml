@@ -43,10 +43,10 @@ jobs:
           python tools/scan_models.py > /tmp/upgrade_report.md || true
           cat /tmp/upgrade_report.md
 
-      - name: Open PR if changes proposed
+      - name: Push proposal branch if changes
         run: |
           if git diff --quiet freshsky_common/models.json; then
-            echo "no upgrades proposed — nothing to PR"
+            echo "no upgrades proposed — nothing to push"
             exit 0
           fi
           branch="model-upgrade-$(date -u +%Y%m%d)"
@@ -55,9 +55,13 @@ jobs:
           git checkout -b "$branch"
           git add freshsky_common/models.json
           git commit -m "model registry: proposed upgrades $(date -u +%Y-%m-%d)"
-          git push origin "$branch"
+          git push origin "$branch" --force-with-lease
+          # GitHub Actions can't open PRs by default (repo setting). Attempt
+          # the PR but don't fail the workflow if the org policy blocks it —
+          # the branch is the artifact, operator reviews + opens PR manually.
           gh pr create --title "Model registry: proposed upgrades $(date -u +%Y-%m-%d)" \
             --body "$(cat /tmp/upgrade_report.md)" \
-            --base main --head "$branch" --draft
+            --base main --head "$branch" --draft || \
+            echo "::notice::PR creation blocked (org policy). Branch '$branch' pushed for manual review at https://github.com/${{ github.repository }}/compare/main...$branch"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
