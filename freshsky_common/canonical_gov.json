@@ -1,0 +1,129 @@
+{
+  "_comment": "Per-slug map: does a free .gov tool already cover this app fully? If covers_fully=true, the HULEC scorer flags the app as a retirement candidate on the Unique dimension. Operator confirms before retiring — this is a signal, not an auto-action. URL is the canonical .gov resource the user should be sent to instead.",
+
+  "foiahelper": {
+    "url": "https://www.foia.gov/",
+    "covers_fully": false,
+    "note": "FOIA.gov is request-routing only. It does not draft the request or appeal text. Our value is in the drafting + appeal walkthrough."
+  },
+  "evictiondefense": {
+    "url": "https://www.lawhelp.org/find-help",
+    "covers_fully": false,
+    "note": "LawHelp directs to local legal aid. It does not draft an Answer or stay motion."
+  },
+  "wageclaimai": {
+    "url": "https://www.dol.gov/agencies/whd/contact/complaints",
+    "covers_fully": false,
+    "note": "DOL intake form, not a wage-theft calculator + complaint drafter."
+  },
+  "medicaidcheck": {
+    "url": "https://www.healthcare.gov/medicaid-chip/",
+    "covers_fully": false,
+    "note": "healthcare.gov screens federally but state Medicaid programs vary; our value is per-state appeal letters."
+  },
+  "specialedai": {
+    "url": "https://sites.ed.gov/idea/",
+    "covers_fully": false,
+    "note": "IDEA site is statute reference, not IEP-letter drafter or dispute-resolution helper."
+  },
+  "creditdispute": {
+    "url": "https://www.consumerfinance.gov/consumer-tools/credit-reports-and-scores/sample-letters/",
+    "covers_fully": true,
+    "note": "CFPB publishes free sample dispute letters covering most cases. Our value-add must stay narrowly above their templates or we should retire."
+  },
+  "probatewalk": {
+    "url": "",
+    "covers_fully": false,
+    "note": "Probate is state-by-state; no single federal canonical."
+  },
+  "overdrafthelp": {
+    "url": "https://www.consumerfinance.gov/consumer-tools/sample-letters/",
+    "covers_fully": false,
+    "note": "CFPB has overdraft complaint guidance but no bank-fee-refund letter generator."
+  },
+  "vinhistory": {
+    "url": "https://vpic.nhtsa.dot.gov/decoder/",
+    "covers_fully": false,
+    "note": "NHTSA decodes VINs but does not produce a buyer-readable history walkthrough."
+  },
+  "vitalrecords": {
+    "url": "https://www.cdc.gov/nchs/w2w/index.htm",
+    "covers_fully": true,
+    "note": "CDC 'Where to Write for Vital Records' is the canonical free index. Our app must add real walkthrough/forms value or retire."
+  },
+  "smallclaimsus": {
+    "url": "https://www.usa.gov/small-claims-court",
+    "covers_fully": false,
+    "note": "USA.gov links to state courts but does not generate a complaint form."
+  },
+  "unemploymentappeal": {
+    "url": "https://www.dol.gov/general/topic/unemployment-insurance",
+    "covers_fully": false,
+    "note": "DOL has program info; states handle appeals individually and there's no federal letter generator."
+  },
+  "section8nav": {
+    "url": "https://www.hud.gov/topics/rental_assistance",
+    "covers_fully": false,
+    "note": "HUD Resource Locator is search-only; our app guides applications and waitlists."
+  },
+  "nfirsassistant": {
+    "url": "https://www.usfa.fema.gov/nfirs/",
+    "covers_fully": false,
+    "note": "USFA hosts NFIRS docs and the tool itself; our value is field-friendly walkthrough during incident reporting."
+  },
+  "votingrightspro": {
+    "url": "https://www.vote.gov/",
+    "covers_fully": false,
+    "note": "Vote.gov is registration links only; our app handles rights-restoration in felony states."
+  },
+  "voterregai": {
+    "url": "https://vote.gov/",
+    "covers_fully": true,
+    "note": "vote.gov fully covers basic voter registration. Operator should review whether VoterRegAI adds enough above vote.gov to keep alive."
+  },
+  "vahousing": {
+    "url": "https://www.va.gov/housing-assistance/",
+    "covers_fully": false,
+    "note": "VA.gov has program info; our app handles HUD-VASH waitlists + landlord communication."
+  },
+  "vaclaim": {
+    "url": "https://www.va.gov/disability/",
+    "covers_fully": false,
+    "note": "VA's eBenefits portal does not draft Notices of Disagreement or higher-level review submissions."
+  },
+  "edusafeai": {
+    "url": "",
+    "covers_fully": false,
+    "note": "Title IX + Clery Act compliance has no single federal user-facing tool."
+  },
+  "usalivingguide": {
+    "url": "https://www.usa.gov/",
+    "covers_fully": false,
+    "note": "USA.gov is a directory; our app's newcomer-onboarding flow is unique."
+  },
+  "teachercerts": {
+    "url": "",
+    "covers_fully": false,
+    "note": "Teacher cert is state-administered; no federal canonical."
+  },
+  "asylumprepai": {
+    "url": "https://www.uscis.gov/i-589",
+    "covers_fully": false,
+    "note": "USCIS form page is the form, not a country-conditions-aware prep walkthrough. Lexical refusal prevents form-fill, but case prep stays useful."
+  },
+  "caphub": {
+    "url": "https://www.benefits.gov/",
+    "covers_fully": false,
+    "note": "benefits.gov screens federally; our hub adds state CAP rules + appeal letters."
+  },
+  "firstresponderhub": {
+    "url": "",
+    "covers_fully": false,
+    "note": "No single federal canonical for cross-discipline first-responder reference."
+  },
+  "iep": {
+    "url": "https://sites.ed.gov/idea/",
+    "covers_fully": false,
+    "note": "IDEA hub is statute-level; no IEP drafting helper."
+  }
+}

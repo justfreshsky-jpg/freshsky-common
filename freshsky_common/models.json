@@ -1,0 +1,92 @@
+{
+  "_comment": "Frontier-model registry. Per-provider current preferred model name. The LLM chain falls back to these defaults when the corresponding *_MODEL env var is not set. A nightly GH Actions workflow (see .github/workflows/model-upgrade.yml in the freshsky-common repo) queries each provider's catalog, proposes upgrades, and opens a PR for operator review. No auto-merge — operator decides. The registry is read by env-override pattern: set GROQ_MODEL=foo on a Cloud Run service to override; otherwise the chain reads from here. Keep this in sync with the defaults in llm.py.",
+
+  "updated_at": "2026-05-14",
+
+  "providers": {
+    "groq": {
+      "env_var": "GROQ_MODEL",
+      "current": "llama-3.3-70b-versatile",
+      "catalog_url": "https://api.groq.com/openai/v1/models",
+      "prefer_size": "70b",
+      "notes": "Llama 3.3 70B is current strong/cheap. When Llama 4 lands on Groq free tier, propose upgrade."
+    },
+    "cerebras": {
+      "env_var": "CEREBRAS_MODEL",
+      "current": "llama-3.1-8b",
+      "catalog_url": "https://api.cerebras.ai/v1/models",
+      "prefer_size": "8b",
+      "notes": "Cerebras free tier dropped 70B in early 2026; staying on 8B until they offer larger free models."
+    },
+    "mistral": {
+      "env_var": "MISTRAL_MODEL",
+      "current": "mistral-large-latest",
+      "catalog_url": "https://api.mistral.ai/v1/models",
+      "prefer_size": "large",
+      "notes": "La Plateforme free tier. mistral-large-latest auto-tracks their latest large model."
+    },
+    "nvidia_nim": {
+      "env_var": "NVIDIA_NIM_MODEL",
+      "current": "meta/llama-3.3-70b-instruct",
+      "catalog_url": "https://integrate.api.nvidia.com/v1/models",
+      "prefer_size": "70b",
+      "notes": "NVIDIA NIM hosts many model families; we prefer Llama 3.x for chain consistency."
+    },
+    "codestral": {
+      "env_var": "CODESTRAL_MODEL",
+      "current": "codestral-latest",
+      "catalog_url": "",
+      "prefer_size": "22b",
+      "notes": "Code-specialized; auto-tracks via -latest tag."
+    },
+    "sambanova": {
+      "env_var": "SAMBANOVA_MODEL",
+      "current": "Meta-Llama-3.3-70B-Instruct",
+      "catalog_url": "https://api.sambanova.ai/v1/models",
+      "prefer_size": "70b",
+      "notes": "Free-tier inference; very fast."
+    },
+    "cloudflare": {
+      "env_var": "CLOUDFLARE_MODEL",
+      "current": "@cf/meta/llama-3.1-8b-instruct",
+      "catalog_url": "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/models/search",
+      "prefer_size": "8b",
+      "notes": "Workers AI free tier; 8B variant is the most stable free model. Vision models (llava-1.5-7b-hf) available for multimodal."
+    },
+    "llm7": {
+      "env_var": "LLM7_MODEL",
+      "current": "gpt-4o-mini",
+      "catalog_url": "https://api.llm7.io/v1/models",
+      "prefer_size": "small",
+      "notes": "Aggregator; routes to OAI-compatible models at no cost. gpt-4o-mini is the cheap default."
+    },
+    "openrouter": {
+      "env_var": "OPENROUTER_MODEL",
+      "current": "meta/llama-3.3-70b-instruct:free",
+      "catalog_url": "https://openrouter.ai/api/v1/models",
+      "prefer_size": "70b",
+      "notes": "Aggregator. Only free-tagged models qualify (the `:free` suffix). Catalog scan must filter for `pricing.prompt == \"0\"`."
+    },
+    "huggingface": {
+      "env_var": "HF_MODEL",
+      "current": "meta-llama/Meta-Llama-3-8B-Instruct",
+      "catalog_url": "https://huggingface.co/api/models",
+      "prefer_size": "8b",
+      "notes": "Inference API; lower latency on smaller models. Last in chain."
+    }
+  },
+
+  "upgrade_rules": {
+    "must_be_free": true,
+    "must_not_be_directly_chinese": true,
+    "preferred_jurisdictions": ["US", "EU", "CA", "UK"],
+    "ban_list": ["deepseek-direct", "qwen-direct", "zhipu", "moonshot", "yi"],
+    "preferred_families": ["llama-3.x", "llama-4", "mistral", "qwen-via-cloudflare-or-openrouter"]
+  },
+
+  "verification": {
+    "smoke_prompt_system": "You are concise.",
+    "smoke_prompt_user": "Say 'ok' and nothing else.",
+    "expected_substring": "ok"
+  }
+}
