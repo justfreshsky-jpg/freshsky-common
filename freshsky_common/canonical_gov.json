@@ -1,6 +1,5 @@
 {
   "_comment": "Per-slug map: does a free .gov tool already cover this app fully? If covers_fully=true, the HULEC scorer flags the app as a retirement candidate on the Unique dimension. Operator confirms before retiring — this is a signal, not an auto-action. URL is the canonical .gov resource the user should be sent to instead.",
-
   "foiahelper": {
     "url": "https://www.foia.gov/",
     "covers_fully": false,
@@ -26,11 +25,6 @@
     "covers_fully": false,
     "note": "IDEA site is statute reference, not IEP-letter drafter or dispute-resolution helper."
   },
-  "creditdispute": {
-    "url": "https://www.consumerfinance.gov/consumer-tools/credit-reports-and-scores/sample-letters/",
-    "covers_fully": true,
-    "note": "CFPB publishes free sample dispute letters covering most cases. Our value-add must stay narrowly above their templates or we should retire."
-  },
   "probatewalk": {
     "url": "",
     "covers_fully": false,
@@ -45,11 +39,6 @@
     "url": "https://vpic.nhtsa.dot.gov/decoder/",
     "covers_fully": false,
     "note": "NHTSA decodes VINs but does not produce a buyer-readable history walkthrough."
-  },
-  "vitalrecords": {
-    "url": "https://www.cdc.gov/nchs/w2w/index.htm",
-    "covers_fully": true,
-    "note": "CDC 'Where to Write for Vital Records' is the canonical free index. Our app must add real walkthrough/forms value or retire."
   },
   "smallclaimsus": {
     "url": "https://www.usa.gov/small-claims-court",
