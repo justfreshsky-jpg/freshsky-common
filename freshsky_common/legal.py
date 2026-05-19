@@ -9,7 +9,7 @@ from __future__ import annotations
 import datetime
 import html as _html
 
-from flask import Flask, Response
+from flask import Flask, Response, redirect
 
 
 _PRIVACY_TEMPLATE = """<!DOCTYPE html>
@@ -132,18 +132,42 @@ def register_legal_routes(app: Flask, *, brand: str, primary_url: str) -> None:
     safe_brand = _html.escape(brand)
     safe_url = _html.escape(primary_url)
 
+    # Compaction (operator directive): sub-apps must not each render their own
+    # full legal boilerplate. They forward to the hub's canonical pages — one
+    # source of truth, leaner apps, zero extra cost (HULEC). The hub itself
+    # serves /privacy + /terms from its own templates and registers them
+    # before this runs, so the idempotency guard below skips it (and the
+    # explicit _is_hub check is belt-and-suspenders against a redirect loop).
+    _HUB = 'https://www.freshskyai.com'
+    # Hub is ONLY the apex/www host — NOT <app>.freshskyai.com sub-apps
+    # (which also end in 'freshskyai.com'). Parse the host precisely.
+    from urllib.parse import urlparse
+    _host = (urlparse(primary_url if '//' in primary_url else f'https://{primary_url}')
+             .hostname or '').lower()
+    _is_hub = _host in ('www.freshskyai.com', 'freshskyai.com')
+
     if not any(r.rule == '/privacy' for r in app.url_map.iter_rules()):
-        @app.route('/privacy')
-        def _privacy():
-            return Response(
-                _PRIVACY_TEMPLATE.format(brand=safe_brand, primary_url=safe_url, today=today, year=year),
-                mimetype='text/html',
-            )
+        if _is_hub:
+            @app.route('/privacy')
+            def _privacy():
+                return Response(
+                    _PRIVACY_TEMPLATE.format(brand=safe_brand, primary_url=safe_url, today=today, year=year),
+                    mimetype='text/html',
+                )
+        else:
+            @app.route('/privacy')
+            def _privacy():
+                return redirect(f'{_HUB}/privacy', code=301)
 
     if not any(r.rule == '/terms' for r in app.url_map.iter_rules()):
-        @app.route('/terms')
-        def _terms():
-            return Response(
-                _TERMS_TEMPLATE.format(brand=safe_brand, primary_url=safe_url, today=today, year=year),
-                mimetype='text/html',
-            )
+        if _is_hub:
+            @app.route('/terms')
+            def _terms():
+                return Response(
+                    _TERMS_TEMPLATE.format(brand=safe_brand, primary_url=safe_url, today=today, year=year),
+                    mimetype='text/html',
+                )
+        else:
+            @app.route('/terms')
+            def _terms():
+                return redirect(f'{_HUB}/terms', code=301)
