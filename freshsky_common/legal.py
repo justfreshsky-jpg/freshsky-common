@@ -68,7 +68,7 @@ _PRIVACY_TEMPLATE = """<!DOCTYPE html>
 <h2>Changes</h2>
 <p>If this policy changes meaningfully, we'll update the date at the top. We'll never quietly start collecting more.</p>
 
-<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/terms">Terms of Use</a> · <a href="https://www.freshskyai.com/values">Values</a> · <a href="https://www.freshskyai.com/support">💛 Support</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
+<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/terms">Terms of Use</a> · <a href="https://www.freshskyai.com/pricing">Pricing</a> ·<a href="https://www.freshskyai.com">freshskyai.com</a></p>
 </body></html>"""
 
 
@@ -109,7 +109,7 @@ _TERMS_TEMPLATE = """<!DOCTYPE html>
 <p>The tool is provided "as is." We make no warranty about uptime, accuracy, completeness, or fitness for any particular purpose. If the tool is wrong, breaks, or is unavailable when you need it, we're not liable for the consequences. To the maximum extent allowed by law, our total liability is capped at zero — you didn't pay anything to use the free tier, after all.</p>
 
 <h2>Cost</h2>
-<p>Every Fresh Sky AI tool is free. There is no Pro tier, no per-seat pricing, no paywall. Per-IP and per-user rate limits keep the system serving everyone fairly. If you'd like to help cover the modest infrastructure cost, one-time donations are accepted on the hub <a href="https://www.freshskyai.com/support">support page</a>. Fresh Sky LLC is a NJ for-profit (not a 501(c)(3)) — donations are not tax-deductible, just appreciated.</p>
+<p>Free tier with daily caps. Pro is $1.99/mo or $19.99/yr (individual) or $29/yr per seat (districts) — one subscription unlocks every Fresh Sky AI tool. See <a href="https://www.freshskyai.com/pricing">freshskyai.com/pricing</a>. Owner bypass exists for support testing.</p>
 
 <h2>Changes</h2>
 <p>We may update these terms. Continuing to use the tool after a change means you accept the new version. The date at the top tells you when the current version was published.</p>
@@ -117,7 +117,7 @@ _TERMS_TEMPLATE = """<!DOCTYPE html>
 <h2>Contact</h2>
 <p>Questions, concerns, complaints, kudos: <a href="https://www.freshskyai.com/#contact">freshskyai.com/#contact</a>.</p>
 
-<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/privacy">Privacy Policy</a> · <a href="https://www.freshskyai.com/values">Values</a> · <a href="https://www.freshskyai.com/support">💛 Support</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
+<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/privacy">Privacy Policy</a> · <a href="https://www.freshskyai.com/pricing">Pricing</a> ·<a href="https://www.freshskyai.com">freshskyai.com</a></p>
 </body></html>"""
 
 

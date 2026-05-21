@@ -126,10 +126,10 @@ def register_global_rate_limits(
             return (
                 jsonify(
                     error="Daily usage limit reached for your account. "
-                          "Please come back tomorrow — or support the project at "
-                          "https://www.freshskyai.com/support to help us raise the cap.",
+                          "Come back tomorrow — or upgrade to Pro at "
+                          "https://www.freshskyai.com/pricing to remove the cap.",
                     rate_limit="user",
-                    donation_url="https://www.freshskyai.com/support",
+                    pricing_url="https://www.freshskyai.com/pricing",
                 ),
                 429,
             )

@@ -214,7 +214,7 @@ _FAQ_BY_CATEGORY = {
         ('Does this work in my state?',
          'Yes. Every legal tool is state-aware: the AI is told which state you are in (or works from the federal default) and tailors its guidance to that state’s statutes, court rules, and procedural quirks.'),
         ('How much does this cost?',
-         'Every Fresh Sky AI tool is free, no sign-in required. Fair-use rate limits keep the system serving everyone. If you find it useful, one-time donations are accepted at freshskyai.com/support.'),
+         'Free tier with daily caps. Pro is $1.99/mo or $19.99/yr — one subscription unlocks every Fresh Sky AI tool. See freshskyai.com/pricing.'),
     ],
     'benefits': [
         ('Is this affiliated with the government?',
@@ -234,7 +234,7 @@ _FAQ_BY_CATEGORY = {
         ('How current is the information?',
          'The AI is grounded in publicly available federal and state information. For time-sensitive items (deadlines, election dates), verify with the relevant agency before acting.'),
         ('Is this free?',
-         'Yes — every Fresh Sky AI tool is free. No paywall, no sign-up, no Pro tier. Donations on the hub support page cover the run cost if you want to chip in.'),
+         'Free tier with daily caps. Pro is $1.99/mo or $19.99/yr — unlocks every Fresh Sky AI tool. See freshskyai.com/pricing.'),
     ],
     'healthcare': [
         ('Is this medical advice?',
@@ -244,7 +244,7 @@ _FAQ_BY_CATEGORY = {
         ('Does this work with my insurance?',
          'The AI uses general knowledge of US insurance frameworks (Medicare, Medicaid, ACA, employer plans) to explain coverage in plain language. Always verify specific coverage decisions with your plan.'),
         ('Is this free to use?',
-         'Yes for the daily quota. No sign-in required to get started.'),
+         'Free tier with daily caps. Pro is $1.99/mo or $19.99/yr — unlocks every Fresh Sky AI tool.'),
     ],
     'education': [
         ('Is this approved by my school district?',
@@ -254,7 +254,7 @@ _FAQ_BY_CATEGORY = {
         ('Does this work for IEP, 504, or ELL situations?',
          'Yes. The tools are designed around K-12 special education and English-learner contexts, with multilingual support so non-English-speaking parents can fully participate.'),
         ('Is this free for teachers and parents?',
-         'Yes — every tool is free, no sign-in required. Fair-use rate limits keep the system serving every classroom. Donations on freshskyai.com/support cover the modest run cost if you want to chip in.'),
+         'Free tier with daily caps. Pro is $1.99/mo or $19.99/yr individual; districts $29/yr per seat. See freshskyai.com/pricing.'),
     ],
     'newcomer': [
         ('Will this affect my immigration status?',
@@ -274,7 +274,7 @@ _FAQ_BY_CATEGORY = {
         ('Does it cover my state and city?',
          'Yes. Housing rules are state and city-specific, and the tool is designed to ask which state you’re in and tailor guidance accordingly.'),
         ('Is it free?',
-         'Yes for the daily quota.'),
+         'Free tier with daily caps. Pro is $1.99/mo or $19.99/yr — unlocks every Fresh Sky AI tool.'),
     ],
     'business': [
         ('Is this tax or financial advice?',
@@ -284,7 +284,7 @@ _FAQ_BY_CATEGORY = {
         ('Is my information stored?',
          'No personal information is stored.'),
         ('Free or paid?',
-         'Free daily tier; intentionally generous.'),
+         'Free tier with daily caps. Pro is $1.99/mo or $19.99/yr — unlocks every Fresh Sky AI tool.'),
     ],
     'financial': [
         ('Is this financial advice?',
@@ -294,7 +294,7 @@ _FAQ_BY_CATEGORY = {
         ('Does it cover federal and state programs?',
          'Yes. The tool covers federal frameworks plus major state-level variations where they materially differ.'),
         ('How much does it cost?',
-         'Free for the daily quota.'),
+         'Free tier with daily caps. Pro is $1.99/mo or $19.99/yr — unlocks every Fresh Sky AI tool.'),
     ],
 }
 
