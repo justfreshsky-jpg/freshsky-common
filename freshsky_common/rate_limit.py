@@ -1,10 +1,10 @@
 """Rate limiters for Flask — per-IP, per-user, and global registration helper.
 
-Free-everywhere mode (2026-05-09 pivot): with the Pro tier removed, every Fresh
-Sky AI app needs hard rate limits at the infrastructure layer to prevent abuse
-from blowing through free LLM provider quotas. ``register_global_rate_limits``
-hooks ``@before_request`` to gate POST endpoints (the LLM-bound ones) on both
-per-IP and per-user budgets without each app having to wire the decorator.
+Pro tier (restored 2026-05-11) handles unlimited use for subscribers; free-tier
+users hit hard limits at the infrastructure layer to prevent abuse from blowing
+through free LLM provider quotas. ``register_global_rate_limits`` hooks
+``@before_request`` to gate POST endpoints (the LLM-bound ones) on both per-IP
+and per-user budgets without each app having to wire the decorator.
 """
 from __future__ import annotations
 

@@ -124,12 +124,11 @@ def register_freemium(
         register_global_rate_limits(app, owner_email=owner_email)
 
     # ─── GATE FUNCTION ───────────────────────────────────────────
-    # Free-everywhere mode (2026-05-09 pivot): every Fresh Sky AI app is
-    # free with no daily limit. Revenue model is hub-only donations
-    # (/support on freshskyai.com). The gate is kept as a stub so
-    # existing call sites `gate = check(); if gate is not None: return gate`
-    # continue to compile and run. Per-IP / per-user rate limiting is
-    # handled separately by register_global_rate_limits().
+    # Free tier daily cap is enforced by register_global_rate_limits()
+    # (60/IP/hr + 200/user/day). Pro tier ($1.99/mo or $19.99/yr at hub
+    # /pricing) is recognized via _check_stripe_subscription. The gate
+    # below is a stub returning None so existing call sites compile;
+    # all enforcement lives in the rate-limit middleware.
     def check() -> Optional[tuple]:
         # Track usage in session for stats only (not enforced).
         today = date.today().isoformat()
@@ -403,7 +402,6 @@ def register_freemium(
             'stripe_enabled': bool(stripe_enabled),
             'community_mode': _is_community_request(),
             'pricing_url': 'https://www.freshskyai.com/pricing',
-            'donate_url': 'https://www.freshskyai.com/donate',
         }
         if email:
             base['email'] = email
