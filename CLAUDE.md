@@ -1,11 +1,11 @@
 # freshsky-common — shared Python lib
 
-Pip-installable from git (`freshsky-common @ git+https://github.com/justfreshsky-jpg/freshsky-common.git@main`). Used by every Fresh Sky AI app (hub, foundation, all 32 batch apps). Changes here ripple to the whole portfolio on next Cloud Run deploy.
+Pip-installable from git (`freshsky-common @ git+https://github.com/justfreshsky-jpg/freshsky-common.git@main`). Used by the hub, foundation apps, civic apps, and the 22 active batch apps. Changes here ripple to the portfolio on next Cloud Run deploy or dependency bump.
 
 ## Modules
 - **`security.py`** — `install_security_headers(app)`: CSP, HSTS, X-Frame-Options, Referrer-Policy, etc.
 - **`rate_limit.py`** — simple in-memory rate limiter (per-IP).
-- **`llm.py`** — unified 5-provider fallback chain (Groq → Cerebras → Gemini → Mistral → OpenRouter → HuggingFace). Reads keys from env.
+- **`llm.py`** — unified 10-provider fallback chain: Groq, Cerebras, NVIDIA NIM, Mistral, Codestral, SambaNova, Cloudflare Workers AI, OpenRouter, LLM7, HuggingFace. Reads keys from env. No direct Gemini provider.
 - **`caching.py`** — memoization helpers for prompt + response caching.
 - **`metrics.py`** — thread-safe in-memory counters (per-app, non-persistent).
 - **`revenue.py`** — SEO (robots, sitemap, humans), GA4 + OG + schema.org + FAQ schema context processor, plus cross-promo + trust-line helpers, category-gated for HULEC.

@@ -34,7 +34,7 @@ _PRIVACY_TEMPLATE = """<!DOCTYPE html>
 <h2>What we collect</h2>
 <p>We try hard to collect as little as possible. Specifically:</p>
 <ul>
-  <li><strong>What you type into the tool.</strong> Your input is sent to AI providers (Groq, Cerebras, Google Gemini, Mistral, OpenRouter, Hugging Face) so they can generate a response. We do not store this input on our servers, and we do not associate it with you.</li>
+  <li><strong>What you type into the tool.</strong> Your input is sent to AI providers (Groq, Cerebras, Mistral, OpenRouter, Hugging Face, or other configured fallback providers) so they can generate a response. We do not store this input on our servers, and we do not associate it with you.</li>
   <li><strong>A session cookie.</strong> Used only to remember your language preference and count daily usage against the free-tier limit. It expires when you close your browser.</li>
   <li><strong>Standard server logs.</strong> Cloud Run records request paths, status codes, IP address, and timestamps for security and debugging. These rotate automatically and are never tied to your input or output.</li>
   <li><strong>Anonymous analytics.</strong> Google Analytics 4 tracks page views and basic interactions to help us understand which tools are useful. IPs are anonymized; we do not store any personally identifiable information.</li>

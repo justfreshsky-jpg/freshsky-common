@@ -4,7 +4,7 @@ Shared infrastructure for Fresh Sky LLC apps.
 
 ## Modules
 
-- `llm` — Multi-provider LLM fallback chain (Groq → Cerebras → Gemini → Mistral → OpenRouter → HuggingFace).
+- `llm` — Multi-provider LLM fallback chain: Groq, Cerebras, NVIDIA NIM, Mistral, Codestral, SambaNova, Cloudflare Workers AI, OpenRouter, LLM7, HuggingFace. No direct Gemini provider.
 - `security` — Security headers + input sanitization + LLM output cleaning.
 - `caching` — Bounded LRU response cache with TTL.
 - `rate_limit` — Per-IP token-bucket rate limiter (Flask decorator).
@@ -48,12 +48,6 @@ def ask():
     return {"result": out}
 ```
 
-## Migration plan
+## Adoption
 
-Apps adopt this incrementally. Each app keeps working until migrated. Order:
-1. `usalivingguide` (most active, also most boilerplate)
-2. `abdyasamrehberi`
-3. `edusafeai`
-4. `njsafeai2`
-5. `teachercerts`
-6. `edutrack`
+The library is already shared across the Fresh Sky hub, foundation apps, civic apps, and active batch apps. Keep app-specific operations in the consuming repos; this package should stay focused on runtime helpers.

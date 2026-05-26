@@ -191,6 +191,9 @@ PORTFOLIO = [
     {'slug': 'estateplanai',        'brand': 'Estate Plan AI',        'url': 'https://estate.freshskyai.com/',       'category': 'legal'},
     {'slug': 'childcarefinder',     'brand': 'Childcare Finder',      'url': 'https://childcare.freshskyai.com/',    'category': 'benefits'},
     {'slug': 'seniorbenefits',      'brand': 'Senior Benefits AI',    'url': 'https://seniorbenefits.freshskyai.com/', 'category': 'benefits'},
+    {'slug': 'overdrafthelp',       'brand': 'Overdraft Help',        'url': 'https://overdraft.freshskyai.com/',    'category': 'financial'},
+    {'slug': 'probatewalk',         'brand': 'Probate Walk',          'url': 'https://probate.freshskyai.com/',      'category': 'legal'},
+    {'slug': 'vinhistory',          'brand': 'VIN History AI',        'url': 'https://carhistory.freshskyai.com/',   'category': 'financial'},
 ]
 
 # When the current app's category has fewer than 3 other apps, fall back to
@@ -561,4 +564,3 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
         new = body.replace('</head>', _FUTURISTIC_SKIN_CSS + '</head>', 1)
         response.set_data(new)
         return response
-

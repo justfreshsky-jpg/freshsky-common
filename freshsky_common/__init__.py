@@ -1,7 +1,7 @@
 """freshsky_common — shared infrastructure for Fresh Sky LLC apps.
 
 Modules:
-    llm        — Multi-provider LLM fallback chain (Groq, Cerebras, Gemini, Mistral, OpenRouter, HF).
+    llm        — Multi-provider LLM fallback chain; no direct Gemini provider.
     auth       — Google OAuth helpers.
     billing    — Stripe subscription helpers.
     security   — Security headers + sanitization helpers.

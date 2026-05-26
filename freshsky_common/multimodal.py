@@ -8,8 +8,8 @@ packages it as a one-liner any app can install.
 Image: a small drag-and-drop / file-picker widget that lets the user
 attach a photo of the document they're asking about. The bytes are
 posted to `/api/multimodal/image` which the app overrides to do
-whatever LLM-vision call it wants (Cloudflare Workers AI llava, Gemini
-Flash Vision via OpenRouter, etc.). The default handler echoes a
+whatever LLM-vision call it wants (for example, Cloudflare Workers AI
+LLaVA or another configured vision endpoint). The default handler echoes a
 "vision not configured" message — keeps the install non-breaking.
 
 Wiring:
