@@ -10,7 +10,7 @@
    - Optional GA4 click tracking (sign-in, upgrade, rate-limit hits)
 
    Pro tier (restored 2026-05-11):
-   - $1.99/mo or $19.99/yr unlocks unlimited use across all 22 apps
+   - $1.99/mo or $19.99/yr unlocks unlimited use across Fresh Sky AI tools
    - Free anonymous: ~10 queries/day per IP
    - Free signed-in: ~20 queries/day per user
    - Pro: unlimited (2000/day soft cap) */
@@ -71,7 +71,7 @@
         'background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;' +
         'padding:4px 12px;border-radius:6px;text-decoration:none;font-weight:600;' +
         'font-size:12.5px;box-shadow:0 0 12px rgba(99,102,241,0.4);">' +
-        '⚡ Get Pro $1.99/mo</a>';
+        '⚡ Pro $19.99/yr</a>';
     if (STATE.logged_in && STATE.is_pro) {
       bar.innerHTML =
         '<span style="color:#94a3b8;">' + escapeHtml(STATE.name || STATE.email || '') + '</span>' +
@@ -137,7 +137,7 @@
             'style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#6366f1,#8b5cf6);' +
             'color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14.5px;font-weight:600;' +
             'box-shadow:0 4px 20px rgba(99,102,241,0.35);">' +
-            '⚡ Get Pro — $1.99/mo or $19.99/yr' +
+            '⚡ Get Pro — $19.99/yr or $1.99/mo' +
           '</a>' +
           '<p style="margin-top:12px;color:#94a3b8;font-size:12px;">One subscription unlocks every Fresh Sky AI tool.</p>' +
         '</div>';

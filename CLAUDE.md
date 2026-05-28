@@ -1,6 +1,6 @@
 # freshsky-common — shared Python lib
 
-Pip-installable from git (`freshsky-common @ git+https://github.com/justfreshsky-jpg/freshsky-common.git@main`). Used by the hub, foundation apps, civic apps, and the 22 active batch apps. Changes here ripple to the portfolio on next Cloud Run deploy or dependency bump.
+Pip-installable from git (`freshsky-common @ git+https://github.com/justfreshsky-jpg/freshsky-common.git@main`). Used by the hub, foundation apps, civic apps, and the 23 active batch apps. Changes here ripple to the portfolio on next Cloud Run deploy or dependency bump.
 
 ## Modules
 - **`security.py`** — `install_security_headers(app)`: CSP, HSTS, X-Frame-Options, Referrer-Policy, etc.

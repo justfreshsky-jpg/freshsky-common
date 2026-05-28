@@ -160,6 +160,33 @@ def ga4_snippet(measurement_id: Optional[str] = None) -> str:
     )
 
 
+def adsense_snippet(category: str = '', client_id: Optional[str] = None) -> str:
+    """Return the Google AdSense Auto Ads tag when configured.
+
+    Ads are env-driven so turning them on only requires setting the publisher
+    id on Cloud Run. Civic apps intentionally stay ad-free by default.
+    """
+    if category == 'civic':
+        return ''
+    cid = (
+        client_id
+        or os.environ.get('ADSENSE_CLIENT_ID', '').strip()
+        or os.environ.get('GOOGLE_ADSENSE_CLIENT_ID', '').strip()
+        or os.environ.get('ADSENSE_PUBLISHER_ID', '').strip()
+    )
+    if not cid:
+        return ''
+    if cid.startswith('pub-'):
+        cid = f'ca-{cid}'
+    if not cid.startswith('ca-pub-'):
+        return ''
+    return (
+        '<script async '
+        'src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js'
+        f'?client={cid}" crossorigin="anonymous"></script>\n'
+    )
+
+
 _CATEGORY_APP_TYPE = {
     'legal': 'LegalService', 'benefits': 'GovernmentService',
     'civic': 'GovernmentService', 'housing': 'RealEstateAgent',
@@ -194,6 +221,7 @@ PORTFOLIO = [
     {'slug': 'overdrafthelp',       'brand': 'Overdraft Help',        'url': 'https://overdraft.freshskyai.com/',    'category': 'financial'},
     {'slug': 'probatewalk',         'brand': 'Probate Walk',          'url': 'https://probate.freshskyai.com/',      'category': 'legal'},
     {'slug': 'vinhistory',          'brand': 'VIN History AI',        'url': 'https://carhistory.freshskyai.com/',   'category': 'financial'},
+    {'slug': 'grantsponsorai',      'brand': 'Grant Sponsor AI',      'url': 'https://grants.freshskyai.com/',       'category': 'business'},
 ]
 
 # When the current app's category has fewer than 3 other apps, fall back to
@@ -281,9 +309,9 @@ _FAQ_BY_CATEGORY = {
     ],
     'business': [
         ('Is this tax or financial advice?',
-         'No. This is an educational tool. For binding tax or financial decisions, consult a licensed CPA or financial advisor.'),
+         'No. This is an educational tool. For binding tax, financial, grant, or sponsorship decisions, consult a qualified professional.'),
         ('How current is the program data?',
-         'The tool reflects current federal incentive programs and major state programs. For specific dollar amounts and eligibility cutoffs, verify with the official program page before applying.'),
+         'When a tool uses live public data, it labels the source. For specific deadlines, award amounts, eligibility cutoffs, and sponsor obligations, verify with the official program page before acting.'),
         ('Is my information stored?',
          'No personal information is stored.'),
         ('Free or paid?',
@@ -531,11 +559,13 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
     cross_promo = cross_promo_html(slug, category)
     trust_line = trust_line_html(category)
     faq_schema = faq_schema_html(category)
+    ad_snippet = adsense_snippet(category)
 
     @app.context_processor
     def _inject_analytics():
         return {
             'ga4_snippet': ga4_snippet(),
+            'adsense_snippet': ad_snippet,
             'og_tags': og,
             'schema_json': schema,
             'faq_schema': faq_schema,
@@ -559,8 +589,15 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
             body = response.get_data(as_text=True)
         except Exception:
             return response
-        if 'fs-portfolio-skin' in body or '</head>' not in body:
+        if '</head>' not in body:
             return response
-        new = body.replace('</head>', _FUTURISTIC_SKIN_CSS + '</head>', 1)
+        head_insert = ''
+        if ad_snippet and 'pagead2.googlesyndication.com/pagead/js/adsbygoogle.js' not in body:
+            head_insert += ad_snippet
+        if 'fs-portfolio-skin' not in body:
+            head_insert += _FUTURISTIC_SKIN_CSS
+        if not head_insert:
+            return response
+        new = body.replace('</head>', head_insert + '</head>', 1)
         response.set_data(new)
         return response

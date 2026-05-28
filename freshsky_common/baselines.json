@@ -15,6 +15,7 @@
   "evictiondefense":   { "tool1": 30, "tool2": 25 },
   "firstresponder":    { "default": 10 },
   "foiahelper":        { "tool1": 45, "tool2": 50 },
+  "grantsponsorai":    { "tool1": 75, "tool2": 45 },
   "govformhelper":     { "tool1": 30, "tool2": 20 },
   "hoadisputehelp":    { "tool1": 30, "tool2": 25 },
   "iep":               { "tool1": 45, "tool2": 30 },
