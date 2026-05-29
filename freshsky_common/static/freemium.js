@@ -77,7 +77,7 @@
         'background:linear-gradient(135deg,#0f9f6e,#1267d8);color:#fff;' +
         'padding:4px 12px;border-radius:6px;text-decoration:none;font-weight:600;' +
         'font-size:12.5px;box-shadow:0 0 12px rgba(15,159,110,0.35);">' +
-        'Sponsor $5+</a>';
+        'Sponsor $5 · $19</a>';
     if (STATE.logged_in && STATE.is_pro) {
       bar.innerHTML =
         '<span style="color:#94a3b8;">' + escapeHtml(STATE.name || STATE.email || '') + '</span>' +
@@ -146,10 +146,15 @@
             '⚡ Get Pro — $19.99/yr or $1.99/mo' +
           '</a>' +
           '<p style="margin-top:12px;color:#94a3b8;font-size:12px;">One subscription unlocks every Fresh Sky AI tool.</p>' +
-          '<p style="margin-top:8px;color:#94a3b8;font-size:12px;">' +
-            'Want to support free access instead? <a href="' + SPONSOR_URL + '" target="_blank" rel="noopener" ' +
-            'data-fs-event="sponsor_clicked" style="color:#6366f1;text-decoration:underline;font-weight:600;">Sponsor Fresh Sky AI</a>.' +
-          '</p>' +
+          '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px;">' +
+            '<a href="' + SPONSOR_URL + '" target="_blank" rel="noopener" data-fs-event="sponsor_clicked" ' +
+              'style="display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border-radius:8px;' +
+              'background:#ecfdf3;color:#087452;text-decoration:none;font-weight:700;font-size:12.5px;">Sponsor $5</a>' +
+            '<a href="' + SPONSOR_URL + '" target="_blank" rel="noopener" data-fs-event="sponsor_clicked" ' +
+              'style="display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border-radius:8px;' +
+              'background:#eef2ff;color:#4338ca;text-decoration:none;font-weight:700;font-size:12.5px;">Sponsor $19</a>' +
+          '</div>' +
+          '<p style="margin-top:8px;color:#94a3b8;font-size:12px;">Sponsorship keeps free access open; Pro unlocks unlimited use.</p>' +
         '</div>';
     }
     if (outputElement) outputElement.innerHTML = html;
@@ -206,7 +211,7 @@
           'style="color:#6366f1;text-decoration:none;font-weight:600;">Fresh Sky AI</a> · ' +
         '<a href="' + SPONSOR_URL + '" target="_blank" rel="noopener" ' +
           'data-fs-event="sponsor_clicked" ' +
-          'style="color:#0f766e;text-decoration:underline;font-weight:600;">Sponsor $5+</a>';
+          'style="color:#0f766e;text-decoration:underline;font-weight:600;">Sponsor $5 · $19</a>';
       document.body.appendChild(d);
     } catch (e) {}
   }
