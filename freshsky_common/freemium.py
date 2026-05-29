@@ -402,6 +402,7 @@ def register_freemium(
             'stripe_enabled': bool(stripe_enabled),
             'community_mode': _is_community_request(),
             'pricing_url': 'https://www.freshskyai.com/pricing',
+            'sponsor_url': 'https://www.freshskyai.com/sponsor',
         }
         if email:
             base['email'] = email

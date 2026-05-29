@@ -5,7 +5,7 @@
 
    What this provides:
    - A slim top user bar with Google sign-in + Pro pill + daily usage
-   - "Get Pro" CTA that links to https://www.freshskyai.com/pricing
+   - "Sponsor $5+" CTA that links to https://www.freshskyai.com/sponsor
    - A friendly 429 rate-limit message that pitches the upgrade
    - Optional GA4 click tracking (sign-in, upgrade, rate-limit hits)
 
@@ -24,8 +24,10 @@
     usage_today: 0, daily_limit: 10,
     community_mode: false,
     pricing_url: 'https://www.freshskyai.com/pricing',
+    sponsor_url: 'https://www.freshskyai.com/sponsor',
   };
   var PRICING_URL = 'https://www.freshskyai.com/pricing';
+  var SPONSOR_URL = 'https://www.freshskyai.com/sponsor';
 
   function track(event, params) {
     try {
@@ -38,7 +40,11 @@
   function refresh() {
     return fetch('/api/user-status')
       .then(function(r) { return r.json(); })
-      .then(function(s) { Object.assign(STATE, s); renderBar(); })
+      .then(function(s) {
+        Object.assign(STATE, s);
+        if (STATE.sponsor_url) SPONSOR_URL = STATE.sponsor_url;
+        renderBar();
+      })
       .catch(function() {});
   }
 
@@ -63,15 +69,15 @@
       document.body.prepend(bar);
       document.body.style.paddingTop = '38px';
     }
-    var proPill = STATE.community_mode
+    var sponsorPill = STATE.community_mode
       ? ''  // civic apps: no upsell, just sign-in
-      : '<a href="' + PRICING_URL + '" target="_blank" rel="noopener" ' +
-        'data-fs-event="upgrade_clicked" ' +
+      : '<a href="' + SPONSOR_URL + '" target="_blank" rel="noopener" ' +
+        'data-fs-event="sponsor_clicked" ' +
         'style="display:inline-flex;align-items:center;gap:6px;' +
-        'background:linear-gradient(135deg,#6366f1,#8b5cf6);color:#fff;' +
+        'background:linear-gradient(135deg,#0f9f6e,#1267d8);color:#fff;' +
         'padding:4px 12px;border-radius:6px;text-decoration:none;font-weight:600;' +
-        'font-size:12.5px;box-shadow:0 0 12px rgba(99,102,241,0.4);">' +
-        '⚡ Pro $19.99/yr</a>';
+        'font-size:12.5px;box-shadow:0 0 12px rgba(15,159,110,0.35);">' +
+        'Sponsor $5+</a>';
     if (STATE.logged_in && STATE.is_pro) {
       bar.innerHTML =
         '<span style="color:#94a3b8;">' + escapeHtml(STATE.name || STATE.email || '') + '</span>' +
@@ -89,19 +95,19 @@
         : '';
       bar.innerHTML =
         '<span style="color:#94a3b8;">' + escapeHtml(STATE.name || STATE.email || '') + '</span>' +
-        usage + proPill +
+        usage + sponsorPill +
         '<a href="/logout" style="color:#64748b;text-decoration:none;font-size:12.5px;">Sign out</a>';
       return;
     }
     if (STATE.google_auth_enabled) {
-      bar.innerHTML = proPill +
+      bar.innerHTML = sponsorPill +
         '<a href="/auth/google" style="display:inline-flex;align-items:center;gap:6px;' +
           'background:rgba(255,255,255,0.06);color:#cbd5e1;border:1px solid rgba(255,255,255,0.12);' +
           'padding:4px 12px;border-radius:6px;text-decoration:none;font-size:12.5px;font-weight:500;">' +
           '🔒 Sign in</a>';
       return;
     }
-    bar.innerHTML = proPill;
+    bar.innerHTML = sponsorPill;
   }
 
   // Public: pages call this when their fetch returns, to render a friendly
@@ -140,6 +146,10 @@
             '⚡ Get Pro — $19.99/yr or $1.99/mo' +
           '</a>' +
           '<p style="margin-top:12px;color:#94a3b8;font-size:12px;">One subscription unlocks every Fresh Sky AI tool.</p>' +
+          '<p style="margin-top:8px;color:#94a3b8;font-size:12px;">' +
+            'Want to support free access instead? <a href="' + SPONSOR_URL + '" target="_blank" rel="noopener" ' +
+            'data-fs-event="sponsor_clicked" style="color:#6366f1;text-decoration:underline;font-weight:600;">Sponsor Fresh Sky AI</a>.' +
+          '</p>' +
         '</div>';
     }
     if (outputElement) outputElement.innerHTML = html;
@@ -194,9 +204,9 @@
       d.innerHTML =
         'Part of <a href="https://www.freshskyai.com/" target="_blank" rel="noopener" ' +
           'style="color:#6366f1;text-decoration:none;font-weight:600;">Fresh Sky AI</a> · ' +
-        '<a href="' + PRICING_URL + '" target="_blank" rel="noopener" ' +
-          'data-fs-event="upgrade_clicked" ' +
-          'style="color:#6366f1;text-decoration:underline;font-weight:500;">⚡ Get Pro</a>';
+        '<a href="' + SPONSOR_URL + '" target="_blank" rel="noopener" ' +
+          'data-fs-event="sponsor_clicked" ' +
+          'style="color:#0f766e;text-decoration:underline;font-weight:600;">Sponsor $5+</a>';
       document.body.appendChild(d);
     } catch (e) {}
   }
