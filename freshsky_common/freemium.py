@@ -1,17 +1,17 @@
-"""Drop-in freemium gate for batch apps.
+"""Drop-in free-access and authentication helpers for Fresh Sky AI apps.
 
 Single call to ``register_freemium(app, ...)`` adds:
 
 * ``/auth/google`` + ``/auth/google/callback`` — OAuth login with optional
   ``?next=`` round-trip.
 * ``/logout`` — clears session.
-* ``/subscribe`` + ``/subscribe/yearly`` — Stripe Checkout for monthly
-  and yearly Pro tiers. Anonymous clicks detour through Google sign-in.
-* ``/billing`` — Stripe Customer Billing Portal for active subscribers.
+* ``/subscribe`` + ``/subscribe/yearly`` — redirect old upgrade links to
+  voluntary sponsorship.
+* ``/billing`` — Stripe Customer Billing Portal for legacy subscribers.
 * ``/stripe-webhook`` — flips ``session['is_pro']`` based on
   ``customer.subscription.{created,updated,deleted}`` events.
 * ``/api/user-status`` — JSON endpoint the frontend hits to render the
-  user bar (logged-in state, usage today, daily limit, pro flag).
+  user bar (logged-in state, free-access state, and legacy supporter flag).
 
 Usage in app.py::
 
@@ -37,10 +37,8 @@ Usage in app.py::
             return gate
         ...
 
-The gate is a no-op for Pro / owner sessions. For free-tier sessions it
-marks the request on ``g`` so an after_request hook can charge usage
-only when the response is 2xx — failed input validation never burns a
-quota slot.
+The gate is a no-op for every session. Infrastructure fair-use limits are
+enforced separately so failed input validation never consumes provider quota.
 """
 from __future__ import annotations
 
@@ -71,6 +69,7 @@ def register_freemium(
     stripe_webhook_secret: str = '',
     primary_url: str = '',
     owner_email: str = '',
+    # Retained for source compatibility with existing app registrations.
     pro_pricing_label: str = 'Pro',
     pro_monthly_dollars: str = '$1.99',
     pro_yearly_dollars: str = '$19',
@@ -94,8 +93,8 @@ def register_freemium(
     primary_url = (primary_url or '').rstrip('/')
     redirect_uri = f'{primary_url}/auth/google/callback' if primary_url else ''
     owner_email = (owner_email or '').strip().lower()
-    # Community mode: civic-volunteer apps stay 100% free, no Pro upgrade
-    # pitch. Three triggers (any one is enough):
+    # Community mode suppresses sponsorship prompts on civic-volunteer apps.
+    # Three triggers (any one is enough):
     #   1. register_freemium(..., community_mode=True) in app.py
     #   2. COMMUNITY_TOOL=true env var on the Cloud Run service
     #   3. Hostname auto-detection at request time (see below) — covers the
@@ -124,11 +123,9 @@ def register_freemium(
         register_global_rate_limits(app, owner_email=owner_email)
 
     # ─── GATE FUNCTION ───────────────────────────────────────────
-    # Free tier daily cap is enforced by register_global_rate_limits()
-    # (60/IP/hr + 200/user/day). Pro tier ($1.99/mo or $19.99/yr at hub
-    # /pricing) is recognized via _check_stripe_subscription. The gate
-    # below is a stub returning None so existing call sites compile;
-    # all enforcement lives in the rate-limit middleware.
+    # Fair-use caps are enforced by register_global_rate_limits()
+    # (60/IP/hr + 200/user/day). This stub remains so existing call sites
+    # compile; all enforcement lives in the rate-limit middleware.
     def check() -> Optional[tuple]:
         # Track usage in session for stats only (not enforced).
         today = date.today().isoformat()
@@ -154,7 +151,7 @@ def register_freemium(
         # set here (domain = request.host) is the same one read in the
         # callback. Otherwise a user on www.freshskyai.com gets the
         # callback at freshskyai.com (different cookie scope) and session
-        # state is lost. This fixes "click Pro → bounces back to /" bug.
+        # state is lost when sign-in begins from an alternate host.
         dyn_redirect_uri = f'{request.scheme}://{request.host}/auth/google/callback'
         next_url = request.args.get('next', '')
         if next_url.startswith('/') and not next_url.startswith('//'):
@@ -227,43 +224,13 @@ def register_freemium(
         session.clear()
         return redirect(url_for('index'))
 
-    # ─── PRO ENROLLMENT — UNIFIED ON HUB ─────────────────────────
-    # The hub (freshskyai.com / www.freshskyai.com) runs the real Stripe
-    # Checkout. Every other Fresh Sky AI app — batch apps, EduSafe, etc.
-    # — has /subscribe redirect to the hub. The hub's
-    # Stripe customer record is authoritative; once the user pays at the
-    # hub, _check_stripe_subscription on each sub-app picks up the
-    # unified Pro on next session refresh (same email = unlocked
-    # everywhere in the portfolio).
-    _HUB_HOSTS = {'freshskyai.com', 'www.freshskyai.com'}
-
-    def _is_hub_request() -> bool:
-        host = (request.host or '').split(':')[0].lower()
-        return host in _HUB_HOSTS
-
     @app.route('/subscribe')
     def freemium_subscribe():
-        # Pro tier restored 2026-05-11. Sub-apps forward to the hub
-        # pricing page; the hub runs Stripe Checkout locally.
-        if not _is_hub_request():
-            return redirect('https://www.freshskyai.com/pricing', code=302)
-        if not stripe_enabled or not stripe_price_monthly:
-            return redirect('https://www.freshskyai.com/pricing', code=302)
-        email = session.get('user_email')
-        if not email:
-            return redirect(url_for('freemium_google_login', next='/subscribe'))
-        return _open_checkout(stripe_secret_key, stripe_price_monthly, email, primary_url)
+        return redirect('https://www.freshskyai.com/sponsor', code=302)
 
     @app.route('/subscribe/yearly')
     def freemium_subscribe_yearly():
-        if not _is_hub_request():
-            return redirect('https://www.freshskyai.com/pricing', code=302)
-        if not stripe_enabled or not stripe_price_yearly:
-            return redirect('https://www.freshskyai.com/pricing', code=302)
-        email = session.get('user_email')
-        if not email:
-            return redirect(url_for('freemium_google_login', next='/subscribe/yearly'))
-        return _open_checkout(stripe_secret_key, stripe_price_yearly, email, primary_url)
+        return redirect('https://www.freshskyai.com/sponsor', code=302)
 
     @app.route('/billing')
     def freemium_billing_portal():
@@ -276,7 +243,7 @@ def register_freemium(
             stripe.api_key = stripe_secret_key
             customers = stripe.Customer.list(email=session['user_email'], limit=1)
             if not customers.data:
-                return redirect(url_for('freemium_subscribe'))
+                return redirect('https://www.freshskyai.com/sponsor', code=302)
             portal = stripe.billing_portal.Session.create(
                 customer=customers.data[0].id,
                 return_url=primary_url or url_for('index', _external=True),
@@ -312,8 +279,8 @@ def register_freemium(
         except Exception:
             etype, obj = '', {}
         logger.info('freemium webhook: %s', etype)
-        # Persist Pro state to Firestore so signed-in users see the flip
-        # immediately on next /api/user-status poll without re-login.
+        # Persist legacy subscription state so existing subscribers can still
+        # see and manage their account without re-login.
         # Best-effort: webhook returns 200 even if Firestore write fails
         # (Stripe will resend on 5xx; we don't want to block the receipt).
         try:
@@ -350,7 +317,7 @@ def register_freemium(
     # ─── EMAIL CAPTURE ───────────────────────────────────────────
     @app.route('/api/notify', methods=['POST'])
     def freemium_email_capture():
-        """Capture an email for re-engagement (paywall hit, no upgrade).
+        """Capture an email for opt-in product updates.
         Stores to Firestore notify_subscribers/<email>. Idempotent."""
         from flask import jsonify as _jsonify
         data = request.get_json(silent=True) or request.form or {}
@@ -383,25 +350,19 @@ def register_freemium(
     # ─── USER STATUS API ─────────────────────────────────────────
     @app.route('/api/user-status')
     def freemium_user_status():
-        # Pro tier restored 2026-05-11. $1.99/mo or $19.99/yr unlocks unlimited.
         email = (session.get('user_email') or '').lower()
         is_owner = bool(owner_email and email == owner_email.lower())
         is_pro = is_owner or bool(session.get('is_pro'))
-        if is_pro:
-            limit = 2000
-        elif email:
-            limit = max(free_daily_limit * 2, 20)
-        else:
-            limit = free_daily_limit
         base = {
             'logged_in': bool(email),
             'google_auth_enabled': google_auth_enabled,
+            'free_access': True,
             'is_pro': is_pro,
+            'is_supporter': is_pro,
             'usage_today': 0,  # exact count not tracked here; rate-limit middleware enforces
-            'daily_limit': limit,
+            'daily_limit': 200 if email else 60,
             'stripe_enabled': bool(stripe_enabled),
             'community_mode': _is_community_request(),
-            'pricing_url': 'https://www.freshskyai.com/pricing',
             'sponsor_url': 'https://www.freshskyai.com/sponsor',
         }
         if email:
@@ -431,45 +392,11 @@ def _check_stripe_subscription(secret_key: str, enabled: bool, email: str) -> bo
         return False
 
 
-def _open_checkout(secret_key: str, price_id: str, email: str, primary_url: str):
-    """Create a Stripe Checkout session and redirect the user to it."""
-    try:
-        import stripe
-        stripe.api_key = secret_key
-        base = (primary_url or '').rstrip('/') or 'https://www.freshskyai.com'
-        checkout = stripe.checkout.Session.create(
-            customer_email=email,
-            mode='subscription',
-            line_items=[{'price': price_id, 'quantity': 1}],
-            success_url=base + '/?upgraded=1',
-            cancel_url=base + '/pricing',
-            allow_promotion_codes=True,
-        )
-        return redirect(checkout.url)
-    except Exception as exc:
-        logger.exception('Stripe checkout error: %s', exc)
-        return (
-            '<!DOCTYPE html><meta charset="utf-8"><title>Checkout error</title>'
-            '<body style="font-family:system-ui;background:#06091a;color:#e2e8f0;'
-            'min-height:100vh;display:flex;align-items:center;justify-content:center;'
-            'padding:24px;text-align:center;margin:0;">'
-            '<div style="max-width:480px;background:rgba(255,255,255,0.04);'
-            'border:1px solid rgba(255,255,255,0.1);border-radius:16px;padding:32px;">'
-            '<h1 style="margin:0 0 12px;color:#fff;">⚠ Checkout couldn\'t open</h1>'
-            f'<p style="color:#94a3b8;line-height:1.6;">{str(exc)[:200]}</p>'
-            '<p style="color:#94a3b8;line-height:1.6;font-size:13px;margin-top:14px;">'
-            'Email admin@freshskyllc.com and we\'ll resolve it within a day.</p>'
-            '<a href="/pricing" style="display:inline-block;margin-top:14px;background:linear-gradient(135deg,#6366f1,#8b5cf6);'
-            'color:#fff;padding:10px 22px;border-radius:10px;text-decoration:none;font-weight:600;">Back to pricing</a>'
-            '</div></body>'
-        ), 502
-
-
 # ─── FIRESTORE PERSISTENCE ──────────────────────────────────────────
 # Free tier: 1 GiB storage, 50K reads/day, 20K writes/day. Sufficient
-# for is_pro flips + email capture at any reasonable scale. Falls back
+# for legacy subscription state + email capture at any reasonable scale. Falls back
 # silently if Firestore client isn't installed or auth fails — system
-# remains functional, just without push-Pro and without email capture.
+# remains functional, just without state sync or email capture.
 
 _FIRESTORE_CLIENT = None
 _FIRESTORE_TRIED = False

@@ -35,21 +35,21 @@ _PRIVACY_TEMPLATE = """<!DOCTYPE html>
 <p>We try hard to collect as little as possible. Specifically:</p>
 <ul>
   <li><strong>What you type into the tool.</strong> Your input is sent to AI providers (Groq, Cerebras, Mistral, OpenRouter, Hugging Face, or other configured fallback providers) so they can generate a response. We do not store this input on our servers, and we do not associate it with you.</li>
-  <li><strong>A session cookie.</strong> Used only to remember your language preference and count daily usage against the free-tier limit. It expires when you close your browser.</li>
+  <li><strong>A session cookie.</strong> Used only to remember preferences, sign-in state, and fair-use counters. It expires when you close your browser.</li>
   <li><strong>Standard server logs.</strong> Cloud Run records request paths, status codes, IP address, and timestamps for security and debugging. These rotate automatically and are never tied to your input or output.</li>
   <li><strong>Anonymous analytics.</strong> Google Analytics 4 tracks page views and basic interactions to help us understand which tools are useful. IPs are anonymized; we do not store any personally identifiable information.</li>
 </ul>
 
 <h2>What we don't collect</h2>
 <ul>
-  <li>No account, no sign-in for the free tier.</li>
+  <li>No account or sign-in is required for basic use.</li>
   <li>No name, address, phone, SSN, or government ID — never ask for them; the AI is told not to need them.</li>
   <li>No tracking pixels, no advertising cookies, no data sharing with advertisers.</li>
   <li>No record of what you typed or what the AI replied — once the response is sent back to you, it's gone from our side.</li>
 </ul>
 
 <h2>What the AI sees</h2>
-<p>The AI providers above receive your input to generate a reply. Each has their own privacy policy and may log requests for abuse prevention; we use only providers that publicly commit to not training on consumer API traffic. We pay for API access; you are not the product.</p>
+<p>The AI providers above receive your input to generate a reply. Each has its own privacy, retention, and abuse-prevention terms. Do not enter Social Security numbers, account numbers, student records, medical records, or other sensitive personal information.</p>
 
 <h2>Third parties</h2>
 <ul>
@@ -68,7 +68,7 @@ _PRIVACY_TEMPLATE = """<!DOCTYPE html>
 <h2>Changes</h2>
 <p>If this policy changes meaningfully, we'll update the date at the top. We'll never quietly start collecting more.</p>
 
-<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/terms">Terms of Use</a> · <a href="https://www.freshskyai.com/sponsor">Sponsor $5+</a> · <a href="https://www.freshskyai.com/pricing">Pricing</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
+<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/terms">Terms of Use</a> · <a href="https://www.freshskyai.com/sponsor">Sponsor $5+</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
 </body></html>"""
 
 
@@ -106,10 +106,10 @@ _TERMS_TEMPLATE = """<!DOCTYPE html>
 <p>Whatever the AI generates in response to your input, you can use, modify, or share. We don't claim copyright over generated content. We can't promise it's accurate or that it doesn't accidentally resemble copyrighted material — review it before publishing or filing it anywhere.</p>
 
 <h2>No guarantees</h2>
-<p>The tool is provided "as is." We make no warranty about uptime, accuracy, completeness, or fitness for any particular purpose. If the tool is wrong, breaks, or is unavailable when you need it, we're not liable for the consequences. To the maximum extent allowed by law, our total liability is capped at zero — you didn't pay anything to use the free tier, after all.</p>
+<p>The tool is provided "as is." We make no warranty about uptime, accuracy, completeness, or fitness for any particular purpose. If the tool is wrong, breaks, or is unavailable when you need it, we're not liable for the consequences. To the maximum extent allowed by law, our total liability for free tool access is capped at zero.</p>
 
 <h2>Cost</h2>
-<p>Free tier with daily caps. Optional sponsorship starts at $5 and does not unlock Pro. Pro is $1.99/mo or $19.99/yr (individual) or $29/yr per seat (districts) — one subscription unlocks every Fresh Sky AI tool. See <a href="https://www.freshskyai.com/sponsor">freshskyai.com/sponsor</a> and <a href="https://www.freshskyai.com/pricing">freshskyai.com/pricing</a>. Fresh Sky LLC is not a charity, and sponsorship payments are not tax-deductible charitable donations. Owner bypass exists for support testing.</p>
+<p>Fresh Sky AI tools are free to use, subject to temporary fair-use and anti-abuse limits that protect shared infrastructure. Optional sponsorship starts at $5, does not purchase access or higher limits, and can be managed separately from tool use. Fresh Sky LLC is not a charity, and sponsorship payments are not tax-deductible charitable donations. Owner bypass exists for support testing.</p>
 
 <h2>Changes</h2>
 <p>We may update these terms. Continuing to use the tool after a change means you accept the new version. The date at the top tells you when the current version was published.</p>
@@ -117,7 +117,7 @@ _TERMS_TEMPLATE = """<!DOCTYPE html>
 <h2>Contact</h2>
 <p>Questions, concerns, complaints, kudos: <a href="https://www.freshskyai.com/#contact">freshskyai.com/#contact</a>.</p>
 
-<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/privacy">Privacy Policy</a> · <a href="https://www.freshskyai.com/sponsor">Sponsor $5+</a> · <a href="https://www.freshskyai.com/pricing">Pricing</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
+<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/privacy">Privacy Policy</a> · <a href="https://www.freshskyai.com/sponsor">Sponsor $5+</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
 </body></html>"""
 
 

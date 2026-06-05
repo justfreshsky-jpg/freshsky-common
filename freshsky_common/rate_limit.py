@@ -1,8 +1,8 @@
 """Rate limiters for Flask — per-IP, per-user, and global registration helper.
 
-Pro tier (restored 2026-05-11) handles unlimited use for subscribers; free-tier
-users hit hard limits at the infrastructure layer to prevent abuse from blowing
-through free LLM provider quotas. ``register_global_rate_limits`` hooks
+All users have free access, with hard fair-use limits at the infrastructure
+layer to prevent abuse from exhausting free LLM provider quotas.
+``register_global_rate_limits`` hooks
 ``@before_request`` to gate POST endpoints (the LLM-bound ones) on both per-IP
 and per-user budgets without each app having to wire the decorator.
 """
@@ -126,10 +126,10 @@ def register_global_rate_limits(
             return (
                 jsonify(
                     error="Daily usage limit reached for your account. "
-                          "Come back tomorrow — or upgrade to Pro at "
-                          "https://www.freshskyai.com/pricing to remove the cap.",
+                          "Please come back tomorrow. Fresh Sky AI remains "
+                          "free; this limit protects shared provider capacity.",
                     rate_limit="user",
-                    pricing_url="https://www.freshskyai.com/pricing",
+                    sponsor_url="https://www.freshskyai.com/sponsor",
                 ),
                 429,
             )

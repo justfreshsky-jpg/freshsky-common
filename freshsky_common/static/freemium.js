@@ -1,32 +1,24 @@
-/* freshsky-common freemium UI — Pro tier edition.
+/* freshsky-common free-access UI.
 
    Drop into any Fresh Sky AI app's <head>:
      <script src="/freemium.js"></script>
 
    What this provides:
-   - A slim top user bar with Google sign-in + Pro pill + daily usage
+   - A slim top user bar with Google sign-in and free-access status
    - "Sponsor $5+" CTA that links to https://www.freshskyai.com/sponsor
-   - A friendly 429 rate-limit message that pitches the upgrade
-   - Optional GA4 click tracking (sign-in, upgrade, rate-limit hits)
-
-   Pro tier (restored 2026-05-11):
-   - $1.99/mo or $19.99/yr unlocks unlimited use across Fresh Sky AI tools
-   - Free anonymous: ~10 queries/day per IP
-   - Free signed-in: ~20 queries/day per user
-   - Pro: unlimited (2000/day soft cap) */
+   - A friendly 429 fair-use message
+   - Optional GA4 click tracking (sign-in, sponsorship, rate-limit hits) */
 (function() {
   if (window.__freemiumLoaded) return;
   window.__freemiumLoaded = true;
 
   var STATE = {
-    is_pro: false, logged_in: false,
+    is_pro: false, is_supporter: false, free_access: true, logged_in: false,
     google_auth_enabled: false,
     usage_today: 0, daily_limit: 10,
     community_mode: false,
-    pricing_url: 'https://www.freshskyai.com/pricing',
     sponsor_url: 'https://www.freshskyai.com/sponsor',
   };
-  var PRICING_URL = 'https://www.freshskyai.com/pricing';
   var SPONSOR_URL = 'https://www.freshskyai.com/sponsor';
 
   function track(event, params) {
@@ -78,36 +70,38 @@
         'padding:4px 12px;border-radius:6px;text-decoration:none;font-weight:600;' +
         'font-size:12.5px;box-shadow:0 0 12px rgba(15,159,110,0.35);">' +
         'Sponsor $5 · $19</a>';
-    if (STATE.logged_in && STATE.is_pro) {
+    if (STATE.logged_in && STATE.is_supporter) {
       bar.innerHTML =
         '<span style="color:#94a3b8;">' + escapeHtml(STATE.name || STATE.email || '') + '</span>' +
         '<span style="display:inline-flex;align-items:center;gap:4px;' +
           'background:rgba(34,197,94,0.15);color:#4ade80;' +
           'border:1px solid rgba(34,197,94,0.3);padding:3px 10px;border-radius:6px;' +
-          'font-weight:600;font-size:12px;">✓ Pro</span>' +
-        '<a href="/billing" style="color:#94a3b8;text-decoration:none;font-size:12.5px;">Manage</a>' +
+          'font-weight:600;font-size:12px;">Supporter</span>' +
+        '<span style="color:#94a3b8;font-size:12px;">Free access</span>' +
+        '<a href="/billing" style="color:#94a3b8;text-decoration:none;font-size:12.5px;">Manage legacy billing</a>' +
         '<a href="/logout" style="color:#64748b;text-decoration:none;font-size:12.5px;">Sign out</a>';
       return;
     }
     if (STATE.logged_in) {
-      var usage = (STATE.usage_today != null && STATE.daily_limit)
-        ? '<span style="color:#94a3b8;font-size:12px;">' + STATE.usage_today + '/' + STATE.daily_limit + ' today</span>'
-        : '';
       bar.innerHTML =
         '<span style="color:#94a3b8;">' + escapeHtml(STATE.name || STATE.email || '') + '</span>' +
-        usage + sponsorPill +
+        '<span style="color:#4ade80;font-weight:600;font-size:12px;">Free access</span>' +
+        sponsorPill +
         '<a href="/logout" style="color:#64748b;text-decoration:none;font-size:12.5px;">Sign out</a>';
       return;
     }
     if (STATE.google_auth_enabled) {
       bar.innerHTML = sponsorPill +
+        '<span style="color:#4ade80;font-weight:600;font-size:12px;">Free access</span>' +
         '<a href="/auth/google" style="display:inline-flex;align-items:center;gap:6px;' +
           'background:rgba(255,255,255,0.06);color:#cbd5e1;border:1px solid rgba(255,255,255,0.12);' +
           'padding:4px 12px;border-radius:6px;text-decoration:none;font-size:12.5px;font-weight:500;">' +
-          '🔒 Sign in</a>';
+          'Sign in</a>';
       return;
     }
-    bar.innerHTML = sponsorPill;
+    bar.innerHTML =
+      '<span style="color:#4ade80;font-weight:600;font-size:12px;">Free access</span>' +
+      sponsorPill;
   }
 
   // Public: pages call this when their fetch returns, to render a friendly
@@ -124,7 +118,7 @@
     if (STATE.community_mode) {
       html =
         '<div style="text-align:center;padding:24px;">' +
-          '<p style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">⏳ Daily limit reached</p>' +
+          '<p style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">Fair-use limit reached</p>' +
           '<p style="color:#475569;margin-bottom:18px;font-size:15px;line-height:1.5;">' +
             "Free for fire/EMS, CAP, CERT, CASA — always. Try again tomorrow." +
             signInNudge +
@@ -134,18 +128,11 @@
     } else {
       html =
         '<div style="text-align:center;padding:24px;">' +
-          '<p style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">⚡ Daily limit reached</p>' +
+          '<p style="font-size:18px;font-weight:600;margin-bottom:8px;color:#1e293b;">Fair-use limit reached</p>' +
           '<p style="color:#475569;margin-bottom:18px;font-size:15px;line-height:1.5;">' +
-            "You've hit today's free cap. Pro unlocks unlimited use across every Fresh Sky AI tool." +
+            "Fresh Sky AI is free. This temporary limit protects shared AI capacity; please try again later." +
             signInNudge +
           '</p>' +
-          '<a href="' + PRICING_URL + '" data-fs-event="upgrade_clicked" target="_blank" rel="noopener" ' +
-            'style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#6366f1,#8b5cf6);' +
-            'color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14.5px;font-weight:600;' +
-            'box-shadow:0 4px 20px rgba(99,102,241,0.35);">' +
-            '⚡ Get Pro — $19.99/yr or $1.99/mo' +
-          '</a>' +
-          '<p style="margin-top:12px;color:#94a3b8;font-size:12px;">One subscription unlocks every Fresh Sky AI tool.</p>' +
           '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px;">' +
             '<a href="' + SPONSOR_URL + '" target="_blank" rel="noopener" data-fs-event="sponsor_clicked" ' +
               'style="display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border-radius:8px;' +
@@ -154,7 +141,7 @@
               'style="display:inline-flex;align-items:center;min-height:32px;padding:0 12px;border-radius:8px;' +
               'background:#eef2ff;color:#4338ca;text-decoration:none;font-weight:700;font-size:12.5px;">Sponsor $19</a>' +
           '</div>' +
-          '<p style="margin-top:8px;color:#94a3b8;font-size:12px;">Sponsorship keeps free access open; Pro unlocks unlimited use.</p>' +
+          '<p style="margin-top:8px;color:#94a3b8;font-size:12px;">Sponsorship is voluntary and does not change access or limits.</p>' +
         '</div>';
     }
     if (outputElement) outputElement.innerHTML = html;
