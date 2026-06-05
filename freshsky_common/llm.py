@@ -22,6 +22,14 @@ _WATSONX_TOKEN_EXPIRES_AT = 0.0
 _WATSONX_TOKEN_LOCK = threading.Lock()
 
 
+def _first_env(*names: str) -> str:
+    for name in names:
+        value = os.environ.get(name, "")
+        if value:
+            return value
+    return ""
+
+
 def _http_post(url: str, headers: dict, payload: dict, timeout: int = 30) -> Optional[str]:
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=timeout)
@@ -35,7 +43,7 @@ def _http_post(url: str, headers: dict, payload: dict, timeout: int = 30) -> Opt
 
 
 def _via_groq(system: str, user: str) -> Optional[str]:
-    key = os.environ.get("GROQ_API_KEY")
+    key = _first_env("GROQ_API_KEY", "GROQ_KEY")
     if not key:
         return None
     raw = _http_post(
@@ -58,7 +66,7 @@ def _via_groq(system: str, user: str) -> Optional[str]:
 
 
 def _via_cerebras(system: str, user: str) -> Optional[str]:
-    key = os.environ.get("CEREBRAS_API_KEY")
+    key = _first_env("CEREBRAS_API_KEY", "CEREBRAS_KEY")
     if not key:
         return None
     raw = _http_post(
@@ -85,7 +93,7 @@ def _via_cerebras(system: str, user: str) -> Optional[str]:
 
 
 def _via_mistral(system: str, user: str) -> Optional[str]:
-    key = os.environ.get("MISTRAL_API_KEY")
+    key = _first_env("MISTRAL_API_KEY", "MISTRAL_KEY")
     if not key:
         return None
     raw = _http_post(
@@ -166,7 +174,7 @@ def _via_sambanova(system: str, user: str) -> Optional[str]:
     # Default model is Meta-Llama-3.3-70B-Instruct (confirmed active May 2026);
     # earlier Llama-3.1-8B/70B/405B-Instruct were deprecated. Override with
     # SAMBANOVA_MODEL for Llama-4-Maverick-17B-128E-Instruct etc.
-    key = os.environ.get("SAMBANOVA_API_KEY")
+    key = _first_env("SAMBANOVA_API_KEY", "SAMBANOVA_KEY")
     if not key:
         return None
     raw = _http_post(
@@ -195,7 +203,7 @@ def _via_cloudflare(system: str, user: str) -> Optional[str]:
     # model is Llama 3.1 8B Instruct — small, fast, cheap on neurons;
     # override via CLOUDFLARE_MODEL for @cf/meta/llama-3.3-70b-instruct-fp8-fast
     # or @cf/google/gemma-7b-it etc. when the task wants more capability.
-    key = os.environ.get("CLOUDFLARE_API_KEY")
+    key = _first_env("CLOUDFLARE_API_KEY", "CLOUDFLARE_AI_TOKEN")
     account = os.environ.get("CLOUDFLARE_ACCOUNT_ID")
     if not key or not account:
         return None
@@ -329,7 +337,7 @@ def _via_llm7(system: str, user: str) -> Optional[str]:
 
 
 def _via_openrouter(system: str, user: str) -> Optional[str]:
-    key = os.environ.get("OPENROUTER_API_KEY")
+    key = _first_env("OPENROUTER_API_KEY", "OPENROUTER_KEY")
     if not key:
         return None
     raw = _http_post(
@@ -356,7 +364,7 @@ def _via_openrouter(system: str, user: str) -> Optional[str]:
 
 
 def _via_huggingface(system: str, user: str) -> Optional[str]:
-    key = os.environ.get("HF_API_KEY") or os.environ.get("HUGGINGFACE_API_KEY")
+    key = _first_env("HF_API_KEY", "HUGGINGFACE_API_KEY", "HF_KEY", "HUGGINGFACE_KEY")
     if not key:
         return None
     model = os.environ.get("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")

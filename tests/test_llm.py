@@ -58,6 +58,23 @@ def test_openrouter_defaults_to_free_and_denies_collection(monkeypatch):
     assert payloads[0]["provider"]["data_collection"] == "deny"
 
 
+def test_legacy_batch_secret_names_remain_supported(monkeypatch):
+    calls = []
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        calls.append((url, headers, json))
+        return FakeResponse(
+            {"choices": [{"message": {"content": "legacy secret answer"}}]}
+        )
+
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    monkeypatch.setenv("GROQ_KEY", "legacy-groq-key")
+    monkeypatch.setattr(llm.requests, "post", fake_post)
+
+    assert llm._via_groq("system", "user") == "legacy secret answer"
+    assert calls[0][1]["Authorization"] == "Bearer legacy-groq-key"
+
+
 def test_huggingface_uses_current_chat_router(monkeypatch):
     urls = []
 
