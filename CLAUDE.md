@@ -5,7 +5,7 @@ Pip-installable from git (`freshsky-common @ git+https://github.com/justfreshsky
 ## Modules
 - **`security.py`** — `install_security_headers(app)`: CSP, HSTS, X-Frame-Options, Referrer-Policy, etc.
 - **`rate_limit.py`** — simple in-memory rate limiter (per-IP).
-- **`llm.py`** — unified 10-provider fallback chain: Groq, Cerebras, NVIDIA NIM, Mistral, Codestral, SambaNova, Cloudflare Workers AI, OpenRouter, LLM7, HuggingFace. Reads keys from env. No direct Gemini provider.
+- **`llm.py`** — unified 11-provider fallback chain: Groq, Cerebras, NVIDIA NIM, Mistral, Codestral, SambaNova, Cloudflare Workers AI, IBM watsonx.ai, OpenRouter, LLM7, Hugging Face. Reads keys from env and reviewed model defaults from `models.json`. No direct Gemini provider.
 - **`caching.py`** — memoization helpers for prompt + response caching.
 - **`metrics.py`** — thread-safe in-memory counters (per-app, non-persistent).
 - **`revenue.py`** — SEO (robots, sitemap, humans), GA4 + OG + schema.org + FAQ schema context processor, plus cross-promo + trust-line helpers, category-gated for HULEC.

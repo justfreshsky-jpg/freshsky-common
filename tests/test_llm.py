@@ -87,3 +87,26 @@ def test_huggingface_uses_current_chat_router(monkeypatch):
 
     assert llm._via_huggingface("system", "user") == "answer"
     assert urls == ["https://router.huggingface.co/v1/chat/completions"]
+
+
+def test_provider_uses_reviewed_registry_default(monkeypatch):
+    payloads = []
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        payloads.append(json)
+        return FakeResponse({"choices": [{"message": {"content": "answer"}}]})
+
+    monkeypatch.setenv("GROQ_API_KEY", "key")
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
+    monkeypatch.setitem(llm._MODEL_DEFAULTS, "groq", "reviewed-model")
+    monkeypatch.setattr(llm.requests, "post", fake_post)
+
+    assert llm._via_groq("system", "user") == "answer"
+    assert payloads[0]["model"] == "reviewed-model"
+
+
+def test_environment_model_override_wins_over_registry(monkeypatch):
+    monkeypatch.setitem(llm._MODEL_DEFAULTS, "groq", "reviewed-model")
+    monkeypatch.setenv("GROQ_MODEL", "operator-model")
+
+    assert llm._model_name("GROQ_MODEL", "groq", "fallback-model") == "operator-model"

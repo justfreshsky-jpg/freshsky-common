@@ -11,6 +11,7 @@ import logging
 import os
 import threading
 import time
+from importlib import resources
 from typing import Callable, List, Optional
 
 import requests
@@ -22,12 +23,39 @@ _WATSONX_TOKEN_EXPIRES_AT = 0.0
 _WATSONX_TOKEN_LOCK = threading.Lock()
 
 
+def _load_model_defaults() -> dict[str, str]:
+    """Load reviewed model defaults from the packaged registry."""
+    try:
+        import json
+
+        registry = json.loads(
+            resources.files("freshsky_common")
+            .joinpath("models.json")
+            .read_text(encoding="utf-8")
+        )
+        return {
+            name: details["current"]
+            for name, details in registry.get("providers", {}).items()
+            if isinstance(details, dict) and details.get("current")
+        }
+    except (OSError, TypeError, ValueError, KeyError):
+        logger.exception("Unable to load packaged LLM model registry")
+        return {}
+
+
+_MODEL_DEFAULTS = _load_model_defaults()
+
+
 def _first_env(*names: str) -> str:
     for name in names:
         value = os.environ.get(name, "")
         if value:
             return value
     return ""
+
+
+def _model_name(env_var: str, provider: str, fallback: str) -> str:
+    return os.environ.get(env_var) or _MODEL_DEFAULTS.get(provider) or fallback
 
 
 def _http_post(url: str, headers: dict, payload: dict, timeout: int = 30) -> Optional[str]:
@@ -50,7 +78,7 @@ def _via_groq(system: str, user: str) -> Optional[str]:
         "https://api.groq.com/openai/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
-            "model": os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
+            "model": _model_name("GROQ_MODEL", "groq", "llama-3.3-70b-versatile"),
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.4,
             "max_tokens": 2000,
@@ -77,7 +105,7 @@ def _via_cerebras(system: str, user: str) -> Optional[str]:
             # llama-3.3-70b was removed; using it returns 404 silently. Keep
             # the small fast model as default so the chain doesn't burn a
             # round-trip on every call before falling through.
-            "model": os.environ.get("CEREBRAS_MODEL", "llama-3.1-8b"),
+            "model": _model_name("CEREBRAS_MODEL", "cerebras", "llama-3.1-8b"),
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.4,
             "max_tokens": 2000,
@@ -100,7 +128,7 @@ def _via_mistral(system: str, user: str) -> Optional[str]:
         "https://api.mistral.ai/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
-            "model": os.environ.get("MISTRAL_MODEL", "mistral-large-latest"),
+            "model": _model_name("MISTRAL_MODEL", "mistral", "mistral-large-latest"),
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.4,
             "max_tokens": 2000,
@@ -127,7 +155,9 @@ def _via_nvidia(system: str, user: str) -> Optional[str]:
         "https://integrate.api.nvidia.com/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
-            "model": os.environ.get("NVIDIA_NIM_MODEL", "meta/llama-3.3-70b-instruct"),
+            "model": _model_name(
+                "NVIDIA_NIM_MODEL", "nvidia_nim", "meta/llama-3.3-70b-instruct"
+            ),
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.4,
             "max_tokens": 2000,
@@ -154,7 +184,7 @@ def _via_codestral(system: str, user: str) -> Optional[str]:
         "https://codestral.mistral.ai/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
-            "model": os.environ.get("CODESTRAL_MODEL", "codestral-latest"),
+            "model": _model_name("CODESTRAL_MODEL", "codestral", "codestral-latest"),
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.4,
             "max_tokens": 2000,
@@ -181,7 +211,9 @@ def _via_sambanova(system: str, user: str) -> Optional[str]:
         "https://api.sambanova.ai/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
-            "model": os.environ.get("SAMBANOVA_MODEL", "Meta-Llama-3.3-70B-Instruct"),
+            "model": _model_name(
+                "SAMBANOVA_MODEL", "sambanova", "Meta-Llama-3.3-70B-Instruct"
+            ),
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.4,
             "max_tokens": 2000,
@@ -211,7 +243,9 @@ def _via_cloudflare(system: str, user: str) -> Optional[str]:
         f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
-            "model": os.environ.get("CLOUDFLARE_MODEL", "@cf/meta/llama-3.1-8b-instruct"),
+            "model": _model_name(
+                "CLOUDFLARE_MODEL", "cloudflare", "@cf/meta/llama-3.1-8b-instruct"
+            ),
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.4,
             "max_tokens": 2000,
@@ -287,8 +321,8 @@ def _via_watsonx(system: str, user: str) -> Optional[str]:
         f"{base_url}/ml/v1/text/chat?version=2024-05-31",
         {"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
         {
-            "model_id": os.environ.get(
-                "WATSONX_MODEL", "ibm/granite-4-h-small"
+            "model_id": _model_name(
+                "WATSONX_MODEL", "watsonx", "ibm/granite-4-h-small"
             ),
             "project_id": project_id,
             "messages": [
@@ -321,7 +355,7 @@ def _via_llm7(system: str, user: str) -> Optional[str]:
         "https://api.llm7.io/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
-            "model": os.environ.get("LLM7_MODEL", "gpt-4o-mini"),
+            "model": _model_name("LLM7_MODEL", "llm7", "gpt-4o-mini"),
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.4,
             "max_tokens": 2000,
@@ -347,7 +381,7 @@ def _via_openrouter(system: str, user: str) -> Optional[str]:
             # Never silently fall onto a billable model. Operators can choose
             # a specific :free model, while the default follows OpenRouter's
             # rotating zero-cost pool.
-            "model": os.environ.get("OPENROUTER_MODEL", "openrouter/free"),
+            "model": _model_name("OPENROUTER_MODEL", "openrouter", "openrouter/free"),
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.4,
             "max_tokens": 2000,
@@ -367,7 +401,9 @@ def _via_huggingface(system: str, user: str) -> Optional[str]:
     key = _first_env("HF_API_KEY", "HUGGINGFACE_API_KEY", "HF_KEY", "HUGGINGFACE_KEY")
     if not key:
         return None
-    model = os.environ.get("HF_MODEL", "meta-llama/Llama-3.1-8B-Instruct")
+    model = _model_name(
+        "HF_MODEL", "huggingface", "meta-llama/Llama-3.1-8B-Instruct"
+    )
     raw = _http_post(
         "https://router.huggingface.co/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},

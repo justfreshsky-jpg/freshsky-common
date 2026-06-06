@@ -14,6 +14,7 @@ import os
 import pathlib
 import re
 import sys
+from decimal import Decimal, InvalidOperation
 
 import requests
 
@@ -45,27 +46,35 @@ def _list_openrouter_free() -> list[str]:
         r = requests.get('https://openrouter.ai/api/v1/models', timeout=15)
         out = []
         for m in r.json().get('data', []):
-            price = (m.get('pricing') or {}).get('prompt', '0')
-            if str(price) == '0':
+            pricing = m.get('pricing') or {}
+            if _is_zero_cost_openrouter_pricing(pricing):
                 out.append(m['id'])
         return out
     except Exception:
         return []
 
 
-def _list_huggingface() -> list[str]:
-    try:
-        r = requests.get('https://huggingface.co/api/models',
-                         params={'filter': 'text-generation', 'sort': 'downloads', 'limit': 30}, timeout=15)
-        return [m['id'] for m in r.json() if isinstance(m, dict) and 'id' in m]
-    except Exception:
-        return []
+def _is_zero_cost_openrouter_pricing(pricing: dict) -> bool:
+    """Require all advertised usage prices to be explicitly zero."""
+    if 'prompt' not in pricing or 'completion' not in pricing:
+        return False
+    for value in pricing.values():
+        if value in (None, ''):
+            continue
+        try:
+            if Decimal(str(value)) != 0:
+                return False
+        except (InvalidOperation, TypeError, ValueError):
+            return False
+    return True
 
 
 SCANNERS = {
     'groq': _list_groq,
-    'openrouter': _list_openrouter_free,
-    'huggingface': _list_huggingface,
+    # OpenRouter's rotating free router is intentionally kept as the runtime
+    # default. Its catalog is scanned only for reporting, not automatic model
+    # replacement. Hugging Face's public Hub catalog does not prove that a
+    # model is available through a free Inference Provider, so it is excluded.
     # Other providers don't expose stable public catalog endpoints we trust
     # — operator updates them by hand. Add scanners as APIs become reliable.
 }
@@ -108,6 +117,11 @@ def _propose_for(provider: str, info: dict, available: list[str]) -> str | None:
 def main() -> int:
     lines = ['# Model registry — proposed upgrades', '']
     any_change = False
+    openrouter_free = _list_openrouter_free()
+    lines.append(
+        f'- openrouter: rotating free router retained '
+        f'({len(openrouter_free)} zero-cost catalog models currently available)'
+    )
     for provider, info in MODELS.get('providers', {}).items():
         scanner = SCANNERS.get(provider)
         if not scanner:

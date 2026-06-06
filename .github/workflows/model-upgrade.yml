@@ -1,9 +1,9 @@
 name: model-upgrade-proposal
 
-# Nightly: query each free-tier LLM provider's model catalog. If a
-# newer/larger model is now available within the free tier and matches
-# upgrade_rules in models.json, open a draft PR proposing the bump.
-# No auto-merge — operator reviews.
+# Nightly: query provider catalogs whose free eligibility can be established
+# safely. If a newer model matches upgrade_rules in models.json, open a draft
+# PR proposing the bump. OpenRouter's rotating free router is retained and
+# reported rather than replaced with one catalog model. No auto-merge.
 
 on:
   schedule:

@@ -1,5 +1,5 @@
 {
-  "_comment": "Frontier-model registry. Per-provider current preferred model name. The LLM chain falls back to these defaults when the corresponding *_MODEL env var is not set. A nightly GH Actions workflow (see .github/workflows/model-upgrade.yml in the freshsky-common repo) queries each provider's catalog, proposes upgrades, and opens a PR for operator review. No auto-merge — operator decides. The registry is read by env-override pattern: set GROQ_MODEL=foo on a Cloud Run service to override; otherwise the chain reads from here. Keep this in sync with the defaults in llm.py.",
+  "_comment": "Reviewed model registry. The LLM chain reads these defaults when the corresponding *_MODEL environment variable is not set. The nightly workflow uses only catalogs that can establish safe eligibility, retains OpenRouter's rotating free router, and opens a proposal for operator review when a strictly newer model qualifies. No auto-merge. Hardcoded names in llm.py are emergency fallbacks for a missing or invalid packaged registry.",
 
   "updated_at": "2026-06-05",
 
