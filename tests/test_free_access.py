@@ -15,17 +15,34 @@ def make_app():
     return app
 
 
-def test_legacy_subscribe_routes_redirect_to_sponsor():
+def test_subscribe_routes_redirect_to_pricing():
     client = make_app().test_client()
-    for path in ("/subscribe", "/subscribe/yearly"):
-        response = client.get(path)
-        assert response.status_code == 302
-        assert response.location == "https://www.freshskyai.com/sponsor"
+    monthly = client.get("/subscribe")
+    yearly = client.get("/subscribe/yearly")
+    assert monthly.status_code == 302
+    assert monthly.location == "https://www.freshskyai.com/pricing?plan=monthly"
+    assert yearly.status_code == 302
+    assert yearly.location == "https://www.freshskyai.com/pricing?plan=yearly"
 
 
-def test_user_status_reports_free_access():
+def test_user_status_reports_free_and_pro_options():
     response = make_app().test_client().get("/api/user-status")
     payload = response.get_json()
     assert payload["free_access"] is True
     assert payload["sponsor_url"].endswith("/sponsor")
+    assert payload["pricing_url"].endswith("/pricing")
+
+
+def test_civic_host_suppresses_pricing():
+    client = make_app().test_client()
+    response = client.get(
+        "/api/user-status",
+        headers={"Host": "nfirs.freshskyai.com"},
+    )
+    payload = response.get_json()
+    assert payload["community_mode"] is True
     assert "pricing_url" not in payload
+    assert client.get(
+        "/subscribe",
+        headers={"Host": "nfirs.freshskyai.com"},
+    ).location == "/"

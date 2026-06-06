@@ -109,7 +109,7 @@ _TERMS_TEMPLATE = """<!DOCTYPE html>
 <p>The tool is provided "as is." We make no warranty about uptime, accuracy, completeness, or fitness for any particular purpose. If the tool is wrong, breaks, or is unavailable when you need it, we're not liable for the consequences. To the maximum extent allowed by law, our total liability for free tool access is capped at zero.</p>
 
 <h2>Cost</h2>
-<p>Fresh Sky AI tools are free to use, subject to temporary fair-use and anti-abuse limits that protect shared infrastructure. Optional sponsorship starts at $5, does not purchase access or higher limits, and can be managed separately from tool use. Fresh Sky LLC is not a charity, and sponsorship payments are not tax-deductible charitable donations. Owner bypass exists for support testing.</p>
+<p>Fresh Sky AI consumer tools include a free tier subject to fair-use and anti-abuse limits. Eligible consumer tools also offer portfolio-wide Pro access for $1.99/month or $9.99/year. Civic-volunteer tools stay free-only. Optional sponsorship starts at $5, remains separate from Pro, and does not purchase access or higher limits. Fresh Sky LLC is not a charity, and sponsorship payments are not tax-deductible charitable donations.</p>
 
 <h2>Changes</h2>
 <p>We may update these terms. Continuing to use the tool after a change means you accept the new version. The date at the top tells you when the current version was published.</p>

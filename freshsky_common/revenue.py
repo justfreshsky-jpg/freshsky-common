@@ -245,7 +245,7 @@ _FAQ_BY_CATEGORY = {
         ('Does this work in my state?',
          'Yes. Every legal tool is state-aware: the AI is told which state you are in (or works from the federal default) and tailors its guidance to that state’s statutes, court rules, and procedural quirks.'),
         ('How much does this cost?',
-         'It is free to use, subject to temporary fair-use limits that protect shared infrastructure. Optional sponsorship helps keep access open but does not buy higher limits.'),
+         'A free tier is available subject to fair-use limits. Fresh Sky AI Pro is $1.99 per month or $9.99 per year across eligible consumer tools. Optional sponsorship remains separate from Pro.'),
     ],
     'benefits': [
         ('Is this affiliated with the government?',
@@ -265,7 +265,7 @@ _FAQ_BY_CATEGORY = {
         ('How current is the information?',
          'The AI is grounded in publicly available federal and state information. For time-sensitive items (deadlines, election dates), verify with the relevant agency before acting.'),
         ('Is this free?',
-         'Yes. It is free to use, subject to temporary fair-use limits that protect shared infrastructure.'),
+         'A free tier is available subject to fair-use limits. Eligible consumer tools offer optional portfolio-wide Pro access, while civic-volunteer tools stay free-only.'),
     ],
     'healthcare': [
         ('Is this medical advice?',
@@ -275,7 +275,7 @@ _FAQ_BY_CATEGORY = {
         ('Does this work with my insurance?',
          'The AI uses general knowledge of US insurance frameworks (Medicare, Medicaid, ACA, employer plans) to explain coverage in plain language. Always verify specific coverage decisions with your plan.'),
         ('Is this free to use?',
-         'Yes. It is free to use, subject to temporary fair-use limits that protect shared infrastructure.'),
+         'A free tier is available subject to fair-use limits. Optional portfolio-wide Pro access is $1.99 per month or $9.99 per year.'),
     ],
     'education': [
         ('Is this approved by my school district?',
@@ -285,7 +285,7 @@ _FAQ_BY_CATEGORY = {
         ('Does this work for IEP, 504, or ELL situations?',
          'Yes. The tools are designed around K-12 special education and English-learner contexts, with multilingual support so non-English-speaking parents can fully participate.'),
         ('Is this free for teachers and parents?',
-         'Yes. It is free for teachers and parents, subject to temporary fair-use limits that protect shared infrastructure.'),
+         'A free tier is available for teachers and parents subject to fair-use limits. Optional portfolio-wide Pro access is $1.99 per month or $9.99 per year.'),
     ],
     'newcomer': [
         ('Will this affect my immigration status?',
@@ -305,7 +305,7 @@ _FAQ_BY_CATEGORY = {
         ('Does it cover my state and city?',
          'Yes. Housing rules are state and city-specific, and the tool is designed to ask which state you’re in and tailor guidance accordingly.'),
         ('Is it free?',
-         'Yes. It is free to use, subject to temporary fair-use limits that protect shared infrastructure.'),
+         'A free tier is available subject to fair-use limits. Optional portfolio-wide Pro access is $1.99 per month or $9.99 per year.'),
     ],
     'business': [
         ('Is this tax or financial advice?',
@@ -315,7 +315,7 @@ _FAQ_BY_CATEGORY = {
         ('Is my information stored?',
          'No personal information is stored.'),
         ('Free or paid?',
-         'Free. Temporary fair-use limits protect shared infrastructure, and optional sponsorship does not purchase higher limits.'),
+         'A free tier is available subject to fair-use limits. Eligible consumer tools offer Pro for $1.99 per month or $9.99 per year. Sponsorship remains separate from Pro.'),
     ],
     'financial': [
         ('Is this financial advice?',
