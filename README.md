@@ -4,7 +4,7 @@ Shared infrastructure for Fresh Sky LLC apps.
 
 ## Modules
 
-- `llm` — Multi-provider LLM fallback chain: Groq, Cerebras, NVIDIA NIM, Mistral, Codestral, SambaNova, Cloudflare Workers AI, IBM watsonx.ai, OpenRouter, LLM7, and Hugging Face. Gemini's free tier is intentionally excluded because free-tier prompts may be used to improve Google products.
+- `llm` — Multi-provider LLM fallback chain: Groq, Cerebras, NVIDIA NIM, Mistral, Codestral, SambaNova, Cloudflare Workers AI, OpenRouter, LLM7, and Hugging Face. Providers that require card-backed billing are excluded, as is Gemini's free tier because free-tier prompts may be used to improve Google products.
 - `security` — Security headers + input sanitization + LLM output cleaning.
 - `caching` — Bounded LRU response cache with TTL.
 - `rate_limit` — Per-IP token-bucket rate limiter (Flask decorator).

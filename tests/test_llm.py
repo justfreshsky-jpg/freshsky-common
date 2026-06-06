@@ -13,35 +13,6 @@ class FakeResponse:
         return self._payload
 
 
-def test_watsonx_uses_iam_token_and_chat_endpoint(monkeypatch):
-    calls = []
-
-    def fake_post(url, headers=None, json=None, data=None, timeout=None):
-        calls.append((url, headers, json, data, timeout))
-        if url == "https://iam.cloud.ibm.com/identity/token":
-            return FakeResponse({"access_token": "token", "expires_in": 3600})
-        return FakeResponse(
-            {"choices": [{"message": {"content": "watsonx answer"}}]}
-        )
-
-    monkeypatch.setenv("WATSONX_API_KEY", "api-key")
-    monkeypatch.setenv("WATSONX_PROJECT_ID", "project-id")
-    monkeypatch.setattr(llm.requests, "post", fake_post)
-    monkeypatch.setattr(llm, "_WATSONX_TOKEN", "")
-    monkeypatch.setattr(llm, "_WATSONX_TOKEN_EXPIRES_AT", 0.0)
-
-    assert llm._via_watsonx("system", "user") == "watsonx answer"
-    assert calls[1][0].endswith("/ml/v1/text/chat?version=2024-05-31")
-    assert calls[1][2]["project_id"] == "project-id"
-    assert calls[1][2]["model_id"] == "ibm/granite-4-h-small"
-
-
-def test_watsonx_skips_without_project(monkeypatch):
-    monkeypatch.setenv("WATSONX_API_KEY", "api-key")
-    monkeypatch.delenv("WATSONX_PROJECT_ID", raising=False)
-    assert llm._via_watsonx("system", "user") is None
-
-
 def test_openrouter_defaults_to_free_and_denies_collection(monkeypatch):
     payloads = []
 

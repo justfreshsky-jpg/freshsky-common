@@ -53,13 +53,6 @@
       "prefer_size": "8b",
       "notes": "Workers AI free tier; 8B variant is the most stable free model. Vision models (llava-1.5-7b-hf) available for multimodal."
     },
-    "watsonx": {
-      "env_var": "WATSONX_MODEL",
-      "current": "ibm/granite-4-h-small",
-      "catalog_url": "https://us-south.ml.cloud.ibm.com/ml/v1/foundation_model_specs?version=2024-05-31",
-      "prefer_size": "small",
-      "notes": "IBM watsonx.ai Runtime Lite fallback. Requires WATSONX_API_KEY and WATSONX_PROJECT_ID; Lite capacity is limited and intended for evaluation."
-    },
     "llm7": {
       "env_var": "LLM7_MODEL",
       "current": "gpt-4o-mini",

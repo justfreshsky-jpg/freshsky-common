@@ -9,18 +9,12 @@ from __future__ import annotations
 
 import logging
 import os
-import threading
-import time
 from importlib import resources
 from typing import Callable, List, Optional
 
 import requests
 
 logger = logging.getLogger(__name__)
-
-_WATSONX_TOKEN = ""
-_WATSONX_TOKEN_EXPIRES_AT = 0.0
-_WATSONX_TOKEN_LOCK = threading.Lock()
 
 
 def _load_model_defaults() -> dict[str, str]:
@@ -260,88 +254,6 @@ def _via_cloudflare(system: str, user: str) -> Optional[str]:
         return None
 
 
-def _watsonx_access_token(api_key: str) -> Optional[str]:
-    """Exchange an IBM Cloud API key for a short-lived IAM bearer token."""
-    global _WATSONX_TOKEN, _WATSONX_TOKEN_EXPIRES_AT
-    now = time.time()
-    if _WATSONX_TOKEN and now < (_WATSONX_TOKEN_EXPIRES_AT - 60):
-        return _WATSONX_TOKEN
-    with _WATSONX_TOKEN_LOCK:
-        now = time.time()
-        if _WATSONX_TOKEN and now < (_WATSONX_TOKEN_EXPIRES_AT - 60):
-            return _WATSONX_TOKEN
-        try:
-            response = requests.post(
-                "https://iam.cloud.ibm.com/identity/token",
-                headers={
-                    "Accept": "application/json",
-                    "Content-Type": "application/x-www-form-urlencoded",
-                },
-                data={
-                    "grant_type": "urn:ibm:params:oauth:grant-type:apikey",
-                    "apikey": api_key,
-                },
-                timeout=15,
-            )
-            if response.status_code >= 400:
-                logger.warning(
-                    "IBM IAM returned %s: %s",
-                    response.status_code,
-                    response.text[:200],
-                )
-                return None
-            data = response.json()
-            token = data.get("access_token", "")
-            if not token:
-                return None
-            _WATSONX_TOKEN = token
-            expires_in = int(data.get("expires_in") or 3600)
-            _WATSONX_TOKEN_EXPIRES_AT = now + max(expires_in, 60)
-            return token
-        except (requests.RequestException, ValueError, TypeError) as exc:
-            logger.warning("IBM IAM request failed: %s", exc)
-            return None
-
-
-def _via_watsonx(system: str, user: str) -> Optional[str]:
-    # IBM watsonx.ai Runtime Lite includes a monthly foundation-model token
-    # allowance and exposes the same REST API as paid plans. Both an API key
-    # and project ID are required; absent credentials make this a no-op.
-    api_key = os.environ.get("WATSONX_API_KEY") or os.environ.get("IBM_CLOUD_API_KEY")
-    project_id = os.environ.get("WATSONX_PROJECT_ID")
-    if not api_key or not project_id:
-        return None
-    token = _watsonx_access_token(api_key)
-    if not token:
-        return None
-    base_url = os.environ.get(
-        "WATSONX_URL", "https://us-south.ml.cloud.ibm.com"
-    ).rstrip("/")
-    raw = _http_post(
-        f"{base_url}/ml/v1/text/chat?version=2024-05-31",
-        {"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
-        {
-            "model_id": _model_name(
-                "WATSONX_MODEL", "watsonx", "ibm/granite-4-h-small"
-            ),
-            "project_id": project_id,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            "temperature": 0.4,
-            "max_tokens": 2000,
-        },
-    )
-    if not raw:
-        return None
-    import json
-    try:
-        return json.loads(raw)["choices"][0]["message"]["content"]
-    except (KeyError, ValueError, IndexError):
-        return None
-
-
 def _via_llm7(system: str, user: str) -> Optional[str]:
     # LLM7.io — UK-based aggregator, donor-supported free tier (30 rpm
     # anonymous, 120 rpm with token). OpenAI-compatible. The router picks
@@ -434,7 +346,6 @@ DEFAULT_PROVIDERS: List[Callable[[str, str], Optional[str]]] = [
     _via_codestral,
     _via_sambanova,
     _via_cloudflare,
-    _via_watsonx,
     _via_openrouter,
     _via_llm7,
     _via_huggingface,
