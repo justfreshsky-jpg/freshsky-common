@@ -245,7 +245,7 @@ _FAQ_BY_CATEGORY = {
         ('Does this work in my state?',
          'Yes. Every legal tool is state-aware: the AI is told which state you are in (or works from the federal default) and tailors its guidance to that state’s statutes, court rules, and procedural quirks.'),
         ('How much does this cost?',
-         'A free tier is available subject to fair-use limits. Fresh Sky AI Pro is $1.99 per month or $9.99 per year across eligible consumer tools. Optional sponsorship remains separate from Pro.'),
+         'Full access is free. Optional donations help cover infrastructure but do not purchase access or priority.'),
     ],
     'benefits': [
         ('Is this affiliated with the government?',
@@ -265,7 +265,7 @@ _FAQ_BY_CATEGORY = {
         ('How current is the information?',
          'The AI is grounded in publicly available federal and state information. For time-sensitive items (deadlines, election dates), verify with the relevant agency before acting.'),
         ('Is this free?',
-         'A free tier is available subject to fair-use limits. Eligible consumer tools offer optional portfolio-wide Pro access, while civic-volunteer tools stay free-only.'),
+         'Full access is free across Fresh Sky AI tools. Optional donations help cover infrastructure.'),
     ],
     'healthcare': [
         ('Is this medical advice?',
@@ -275,7 +275,7 @@ _FAQ_BY_CATEGORY = {
         ('Does this work with my insurance?',
          'The AI uses general knowledge of US insurance frameworks (Medicare, Medicaid, ACA, employer plans) to explain coverage in plain language. Always verify specific coverage decisions with your plan.'),
         ('Is this free to use?',
-         'A free tier is available subject to fair-use limits. Optional portfolio-wide Pro access is $1.99 per month or $9.99 per year.'),
+         'Full access is free. Optional donations help cover infrastructure.'),
     ],
     'education': [
         ('Is this approved by my school district?',
@@ -285,7 +285,7 @@ _FAQ_BY_CATEGORY = {
         ('Does this work for IEP, 504, or ELL situations?',
          'Yes. The tools are designed around K-12 special education and English-learner contexts, with multilingual support so non-English-speaking parents can fully participate.'),
         ('Is this free for teachers and parents?',
-         'A free tier is available for teachers and parents subject to fair-use limits. Optional portfolio-wide Pro access is $1.99 per month or $9.99 per year.'),
+         'Full access is free for teachers, parents, and other users. Optional donations help cover infrastructure.'),
     ],
     'newcomer': [
         ('Will this affect my immigration status?',
@@ -305,7 +305,7 @@ _FAQ_BY_CATEGORY = {
         ('Does it cover my state and city?',
          'Yes. Housing rules are state and city-specific, and the tool is designed to ask which state you’re in and tailor guidance accordingly.'),
         ('Is it free?',
-         'A free tier is available subject to fair-use limits. Optional portfolio-wide Pro access is $1.99 per month or $9.99 per year.'),
+         'Full access is free. Optional donations help cover infrastructure.'),
     ],
     'business': [
         ('Is this tax or financial advice?',
@@ -315,7 +315,7 @@ _FAQ_BY_CATEGORY = {
         ('Is my information stored?',
          'No personal information is stored.'),
         ('Free or paid?',
-         'A free tier is available subject to fair-use limits. Eligible consumer tools offer Pro for $1.99 per month or $9.99 per year. Sponsorship remains separate from Pro.'),
+         'Full access is free. Optional donations help cover infrastructure but do not purchase access or priority.'),
     ],
     'financial': [
         ('Is this financial advice?',
@@ -325,7 +325,7 @@ _FAQ_BY_CATEGORY = {
         ('Does it cover federal and state programs?',
          'Yes. The tool covers federal frameworks plus major state-level variations where they materially differ.'),
         ('How much does it cost?',
-         'It is free to use, subject to temporary fair-use limits that protect shared infrastructure.'),
+         'Full access is free. AI providers or security safeguards may still temporarily slow automated or abusive traffic.'),
     ],
 }
 

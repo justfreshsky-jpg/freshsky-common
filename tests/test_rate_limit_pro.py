@@ -27,7 +27,7 @@ def test_free_user_is_limited():
     assert client.post("/api/generate").status_code == 429
 
 
-def test_pro_user_bypasses_free_limit():
+def test_explicit_trusted_session_bypasses_optional_abuse_limit():
     client = make_app().test_client()
     with client.session_transaction() as state:
         state["user_email"] = "pro@example.com"

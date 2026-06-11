@@ -35,7 +35,7 @@ _PRIVACY_TEMPLATE = """<!DOCTYPE html>
 <p>We try hard to collect as little as possible. Specifically:</p>
 <ul>
   <li><strong>What you type into the tool.</strong> Your input is sent to AI providers (Groq, Cerebras, Mistral, OpenRouter, Hugging Face, or other configured fallback providers) so they can generate a response. We do not store this input on our servers, and we do not associate it with you.</li>
-  <li><strong>A session cookie.</strong> Used only to remember preferences, sign-in state, and fair-use counters. It expires when you close your browser.</li>
+  <li><strong>A session cookie.</strong> Used only to remember preferences and sign-in state. It expires when you close your browser.</li>
   <li><strong>Standard server logs.</strong> Cloud Run records request paths, status codes, IP address, and timestamps for security and debugging. These rotate automatically and are never tied to your input or output.</li>
   <li><strong>Anonymous analytics.</strong> Google Analytics 4 tracks page views and basic interactions to help us understand which tools are useful. IPs are anonymized; we do not store any personally identifiable information.</li>
 </ul>
@@ -68,7 +68,7 @@ _PRIVACY_TEMPLATE = """<!DOCTYPE html>
 <h2>Changes</h2>
 <p>If this policy changes meaningfully, we'll update the date at the top. We'll never quietly start collecting more.</p>
 
-<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/terms">Terms of Use</a> · <a href="https://www.freshskyai.com/sponsor">Sponsor $5+</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
+<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/terms">Terms of Use</a> · <a href="https://www.freshskyai.com/donate">Donate</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
 </body></html>"""
 
 
@@ -109,7 +109,7 @@ _TERMS_TEMPLATE = """<!DOCTYPE html>
 <p>The tool is provided "as is." We make no warranty about uptime, accuracy, completeness, or fitness for any particular purpose. If the tool is wrong, breaks, or is unavailable when you need it, we're not liable for the consequences. To the maximum extent allowed by law, our total liability for free tool access is capped at zero.</p>
 
 <h2>Cost</h2>
-<p>Fresh Sky AI consumer tools include a free tier subject to fair-use and anti-abuse limits. Eligible consumer tools also offer portfolio-wide Pro access for $1.99/month or $9.99/year. Civic-volunteer tools stay free-only. Optional sponsorship starts at $5, remains separate from Pro, and does not purchase access or higher limits. Fresh Sky LLC is not a charity, and sponsorship payments are not tax-deductible charitable donations.</p>
+<p>Fresh Sky AI tools are available without an access fee. Optional donations help cover infrastructure but do not purchase access, priority, or guaranteed availability. Provider safety controls and anti-abuse protections may still temporarily restrict harmful or automated use. Fresh Sky LLC is not a charity, and payments are not tax-deductible charitable donations.</p>
 
 <h2>Changes</h2>
 <p>We may update these terms. Continuing to use the tool after a change means you accept the new version. The date at the top tells you when the current version was published.</p>
@@ -117,7 +117,7 @@ _TERMS_TEMPLATE = """<!DOCTYPE html>
 <h2>Contact</h2>
 <p>Questions, concerns, complaints, kudos: <a href="https://www.freshskyai.com/#contact">freshskyai.com/#contact</a>.</p>
 
-<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/privacy">Privacy Policy</a> · <a href="https://www.freshskyai.com/sponsor">Sponsor $5+</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
+<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/privacy">Privacy Policy</a> · <a href="https://www.freshskyai.com/donate">Donate</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
 </body></html>"""
 
 

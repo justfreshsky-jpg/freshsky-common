@@ -1,8 +1,7 @@
-"""Rate limiters for Flask — per-IP, per-user, and global registration helper.
+"""Optional request-abuse limiters for Flask.
 
-Free users have hard fair-use limits at the infrastructure layer to prevent
-abuse from exhausting provider quotas. Consumer Pro sessions can bypass these
-limits; civic apps can disable that bypass.
+The shared free-access layer does not install these limits. An app may opt in
+only when it needs protection against automated or abusive traffic.
 """
 from __future__ import annotations
 
@@ -88,7 +87,7 @@ def register_global_rate_limits(
 
     Defaults give every IP up to ``ip_per_hour`` POSTs/hour and every signed-in
     Google user up to ``user_per_day`` POSTs/day. Owner email and an optional
-    verified Pro callback bypass both. Health, status, and OAuth routes are
+    trusted-session callback bypass both. Health, status, and OAuth routes are
     excluded from limiting.
 
     The limits are enforced *before* the freemium gate / view runs, so an
@@ -127,10 +126,9 @@ def register_global_rate_limits(
         if session.get("user_email") and not user_limiter.check():
             return (
                 jsonify(
-                    error="Daily usage limit reached for your account. "
-                          "Please come back tomorrow or upgrade to Pro.",
+                    error="Automated request protection was triggered. "
+                          "Please wait and try again.",
                     rate_limit="user",
-                    pricing_url="https://www.freshskyai.com/pricing",
                 ),
                 429,
             )

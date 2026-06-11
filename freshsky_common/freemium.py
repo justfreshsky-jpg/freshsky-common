@@ -1,17 +1,15 @@
-"""Drop-in freemium and authentication helpers for Fresh Sky AI apps.
+"""Drop-in free-access and authentication helpers for Fresh Sky AI apps.
 
 Single call to ``register_freemium(app, ...)`` adds:
 
 * ``/auth/google`` + ``/auth/google/callback`` — OAuth login with optional
   ``?next=`` round-trip.
 * ``/logout`` — clears session.
-* ``/subscribe`` + ``/subscribe/yearly`` — redirect upgrade links to the
-  portfolio-wide Pro pricing page.
-* ``/billing`` — Stripe Customer Billing Portal for subscribers.
-* ``/stripe-webhook`` — flips ``session['is_pro']`` based on
-  ``customer.subscription.{created,updated,deleted}`` events.
+* ``/subscribe`` + ``/subscribe/yearly`` — redirect legacy upgrade links to
+  the optional donation page.
+* ``/billing`` — Stripe Customer Billing Portal for historical subscribers.
 * ``/api/user-status`` — JSON endpoint the frontend hits to render the
-  user bar (logged-in state, free usage, and Pro state).
+  user bar (logged-in state and full free access).
 
 Usage in app.py::
 
@@ -37,8 +35,8 @@ Usage in app.py::
             return gate
         ...
 
-The gate is a no-op for every session. Infrastructure fair-use limits are
-enforced separately for free users so failed validation never consumes quota.
+The gate is a no-op for every session. Provider safety controls and platform
+cost controls are enforced separately from user access.
 """
 from __future__ import annotations
 
@@ -74,14 +72,14 @@ def register_freemium(
     pro_yearly_dollars: str = '$9.99',
     community_mode: bool = False,
 ) -> Callable[[], Optional[Response]]:
-    """Wire freemium routes onto ``app`` and return the gate function.
+    """Wire free-access routes onto ``app`` and return the gate function.
 
     Returns
     -------
     check : callable -> None | (Response, int)
         Call at the top of each gated endpoint. Returns ``None`` if the
-        request is allowed to proceed; returns a 429 ``(Response, int)``
-        tuple when the daily free limit has been reached. Use::
+        request is allowed to proceed. The return type remains compatible
+        with older call sites that checked for a possible response. Use::
 
             gate = check()
             if gate is not None:
@@ -92,7 +90,8 @@ def register_freemium(
     primary_url = (primary_url or '').rstrip('/')
     redirect_uri = f'{primary_url}/auth/google/callback' if primary_url else ''
     owner_email = (owner_email or '').strip().lower()
-    # Community mode suppresses pricing prompts on civic-volunteer apps.
+    # Community mode is retained for UI compatibility with civic-volunteer
+    # apps, but every app now receives the same unrestricted access.
     # Three triggers (any one is enough):
     #   1. register_freemium(..., community_mode=True) in app.py
     #   2. COMMUNITY_TOOL=true env var on the Cloud Run service
@@ -104,28 +103,15 @@ def register_freemium(
         'firstresponder.freshskyai.com', 'cap.freshskyai.com',
     }
     community_mode_static = community_mode or os.environ.get('COMMUNITY_TOOL', '').lower() in ('1', 'true', 'yes')
-    if community_mode_static:
-        free_daily_limit = max(free_daily_limit, 50)
-
     def _is_community_request() -> bool:
         if community_mode_static:
             return True
         host = (request.host or '').split(':')[0].lower()
         return host in _STATIC_COMMUNITY_HOSTS
 
-    # Free-tier rate limits protect shared providers. Consumer Pro sessions
-    # bypass these limits; civic apps remain free-only for every user.
-    if free_daily_limit >= 0:
-        from .rate_limit import register_global_rate_limits
-        register_global_rate_limits(
-            app,
-            owner_email=owner_email,
-            pro_bypass=lambda: bool(session.get('is_pro')) and not _is_community_request(),
-        )
-
     # ─── GATE FUNCTION ───────────────────────────────────────────
-    # Free caps are enforced by register_global_rate_limits(). This stub
-    # remains so existing call sites compile.
+    # This stub remains so existing call sites compile. Access is free and
+    # unrestricted regardless of account or historical subscription state.
     def check() -> Optional[tuple]:
         # Track usage in session for stats only (not enforced).
         today = date.today().isoformat()
@@ -207,14 +193,13 @@ def register_freemium(
         name = info.get('name', email.split('@')[0] if email else '')
         if not email:
             return redirect(url_for('index'))
-        is_pro = _check_stripe_subscription(stripe_secret_key, stripe_enabled, email)
         next_url = session.get('oauth_next', '')
         # Session fixation defense
         session.clear()
         session.permanent = True
         session['user_email'] = email
         session['user_name'] = name
-        session['is_pro'] = is_pro
+        session['is_pro'] = False
         if next_url.startswith('/') and not next_url.startswith('//'):
             return redirect(next_url)
         return redirect(url_for('index'))
@@ -226,21 +211,11 @@ def register_freemium(
 
     @app.route('/subscribe')
     def freemium_subscribe():
-        if _is_community_request():
-            return redirect(url_for('index'), code=302)
-        return redirect(
-            'https://www.freshskyai.com/pricing?plan=monthly',
-            code=302,
-        )
+        return redirect('https://www.freshskyai.com/donate', code=302)
 
     @app.route('/subscribe/yearly')
     def freemium_subscribe_yearly():
-        if _is_community_request():
-            return redirect(url_for('index'), code=302)
-        return redirect(
-            'https://www.freshskyai.com/pricing?plan=yearly',
-            code=302,
-        )
+        return redirect('https://www.freshskyai.com/donate', code=302)
 
     @app.route('/billing')
     def freemium_billing_portal():
@@ -253,7 +228,7 @@ def register_freemium(
             stripe.api_key = stripe_secret_key
             customers = stripe.Customer.list(email=session['user_email'], limit=1)
             if not customers.data:
-                return redirect('https://www.freshskyai.com/pricing', code=302)
+                return redirect('https://www.freshskyai.com/donate', code=302)
             portal = stripe.billing_portal.Session.create(
                 customer=customers.data[0].id,
                 return_url=primary_url or url_for('index', _external=True),
@@ -361,23 +336,22 @@ def register_freemium(
     @app.route('/api/user-status')
     def freemium_user_status():
         email = (session.get('user_email') or '').lower()
-        is_owner = bool(owner_email and email == owner_email.lower())
-        is_pro = is_owner or bool(session.get('is_pro'))
         community_request = _is_community_request()
         base = {
             'logged_in': bool(email),
             'google_auth_enabled': google_auth_enabled,
             'free_access': True,
-            'is_pro': is_pro,
+            'full_access': True,
+            'is_pro': False,
             'is_supporter': False,
-            'usage_today': 0,  # exact count not tracked here; rate-limit middleware enforces
-            'daily_limit': None if is_pro and not community_request else (200 if email else 60),
+            'usage_today': 0,
+            'daily_limit': None,
             'stripe_enabled': bool(stripe_enabled),
             'community_mode': community_request,
-            'sponsor_url': 'https://www.freshskyai.com/sponsor',
+            'donate_url': 'https://www.freshskyai.com/donate',
+            # Compatibility alias for older app JavaScript.
+            'sponsor_url': 'https://www.freshskyai.com/donate',
         }
-        if not community_request:
-            base['pricing_url'] = 'https://www.freshskyai.com/pricing'
         if email:
             base['email'] = email
             base['name'] = session.get('user_name', '')
