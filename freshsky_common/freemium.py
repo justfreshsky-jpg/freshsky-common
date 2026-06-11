@@ -7,7 +7,8 @@ Single call to ``register_freemium(app, ...)`` adds:
 * ``/logout`` — clears session.
 * ``/subscribe`` + ``/subscribe/yearly`` — redirect legacy upgrade links to
   the optional donation page.
-* ``/billing`` — Stripe Customer Billing Portal for historical subscribers.
+* ``/billing`` — Stripe Customer Billing Portal for recurring supporters and
+  historical subscribers.
 * ``/api/user-status`` — JSON endpoint the frontend hits to render the
   user bar (logged-in state and full free access).
 
@@ -86,7 +87,9 @@ def register_freemium(
                 return gate
     """
     google_auth_enabled = bool(google_client_id and google_client_secret)
-    stripe_enabled = bool(stripe_secret_key and stripe_price_monthly)
+    # Donation checkout creates prices dynamically, so the customer portal
+    # remains available even when retired Pro price IDs are not configured.
+    stripe_enabled = bool(stripe_secret_key)
     primary_url = (primary_url or '').rstrip('/')
     redirect_uri = f'{primary_url}/auth/google/callback' if primary_url else ''
     owner_email = (owner_email or '').strip().lower()
@@ -264,8 +267,7 @@ def register_freemium(
         except Exception:
             etype, obj = '', {}
         logger.info('freemium webhook: %s', etype)
-        # Persist subscription state so subscribers can see and manage their
-        # account without re-login.
+        # Persist historical subscription state for backward compatibility.
         # Best-effort: webhook returns 200 even if Firestore write fails
         # (Stripe will resend on 5xx; we don't want to block the receipt).
         try:
