@@ -3,7 +3,7 @@
 Modules:
     llm        — Multi-provider LLM fallback chain; no direct Gemini provider.
     auth       — Google OAuth helpers.
-    billing    — Stripe subscription helpers.
+    freemium   — Free-access UI, OAuth, donation billing, and email capture.
     security   — Security headers + sanitization helpers.
     caching    — Simple in-memory response cache.
     rate_limit — Token-bucket / per-IP rate limiter.

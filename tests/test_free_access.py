@@ -14,7 +14,7 @@ def make_app(**freemium_options):
     def index():
         return "ok"
 
-    register_freemium(app, free_daily_limit=-1, **freemium_options)
+    register_freemium(app, **freemium_options)
     return app
 
 
@@ -34,9 +34,9 @@ def test_user_status_reports_full_free_access():
     assert payload["free_access"] is True
     assert payload["full_access"] is True
     assert payload["daily_limit"] is None
-    assert payload["is_pro"] is False
     assert payload["donate_url"].endswith("/donate")
     assert "pricing_url" not in payload
+    assert "is_pro" not in payload
 
 
 def test_stripe_secret_enables_billing_without_retired_price_ids(monkeypatch):

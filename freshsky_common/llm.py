@@ -7,6 +7,7 @@ Usage:
 """
 from __future__ import annotations
 
+import json
 import logging
 import os
 from importlib import resources
@@ -14,7 +15,29 @@ from typing import Callable, List, Optional
 
 import requests
 
+from .metrics import Metrics
+
 logger = logging.getLogger(__name__)
+_PROVIDER_METRICS = Metrics()
+
+
+_PROVIDER_ENV_REQUIREMENTS = {
+    "groq": (("GROQ_API_KEY", "GROQ_KEY"),),
+    "cerebras": (("CEREBRAS_API_KEY", "CEREBRAS_KEY"),),
+    "nvidia_nim": (("NVIDIA_NIM_KEY",),),
+    "mistral": (("MISTRAL_API_KEY", "MISTRAL_KEY"),),
+    "codestral": (("CODESTRAL_API_KEY",),),
+    "sambanova": (("SAMBANOVA_API_KEY", "SAMBANOVA_KEY"),),
+    "cloudflare": (
+        ("CLOUDFLARE_API_KEY", "CLOUDFLARE_AI_TOKEN"),
+        ("CLOUDFLARE_ACCOUNT_ID",),
+    ),
+    "openrouter": (("OPENROUTER_API_KEY", "OPENROUTER_KEY"),),
+    "llm7": (("LLM7_API_KEY",),),
+    "huggingface": (
+        ("HF_API_KEY", "HUGGINGFACE_API_KEY", "HF_KEY", "HUGGINGFACE_KEY"),
+    ),
+}
 
 
 def _load_model_defaults() -> dict[str, str]:
@@ -52,16 +75,115 @@ def _model_name(env_var: str, provider: str, fallback: str) -> str:
     return os.environ.get(env_var) or _MODEL_DEFAULTS.get(provider) or fallback
 
 
-def _http_post(url: str, headers: dict, payload: dict, timeout: int = 30) -> Optional[str]:
+def configured_providers() -> list[str]:
+    """Return configured provider names without exposing credentials."""
+    return [
+        provider
+        for provider, requirements in _PROVIDER_ENV_REQUIREMENTS.items()
+        if all(any(os.environ.get(name) for name in aliases) for aliases in requirements)
+    ]
+
+
+def provider_metrics_snapshot() -> dict:
+    """Return process-local, privacy-safe LLM provider counters."""
+    raw = _PROVIDER_METRICS.snapshot()
+    return {
+        "configured": configured_providers(),
+        "chain": raw.pop("_chain", {}),
+        "providers": raw,
+        "scope": "current_process",
+    }
+
+
+def install_provider_metrics(app, path: str = "/metrics/providers") -> None:
+    """Expose process-local provider telemetry on a Flask application."""
+    endpoint = "freshsky_provider_metrics"
+    if endpoint in app.view_functions:
+        return
+
+    def _provider_metrics_response():
+        from flask import jsonify
+
+        response = jsonify(provider_metrics_snapshot())
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    app.add_url_rule(path, endpoint, _provider_metrics_response, methods=["GET"])
+
+
+def _record(provider: str, event: str) -> None:
+    _PROVIDER_METRICS.incr(provider, event)
+
+
+def _failure_category(status_code: int) -> str:
+    if status_code == 429:
+        return "rate_limited"
+    if status_code in (401, 403):
+        return "authentication"
+    if status_code == 404:
+        return "model_or_endpoint_missing"
+    if status_code == 408:
+        return "timeout"
+    if status_code >= 500:
+        return "provider_unavailable"
+    return "http_error"
+
+
+def _http_post(
+    provider: str,
+    url: str,
+    headers: dict,
+    payload: dict,
+    timeout: int = 30,
+) -> Optional[str]:
+    _record(provider, "attempts")
     try:
         r = requests.post(url, headers=headers, json=payload, timeout=timeout)
         if r.status_code >= 400:
-            logger.warning("LLM provider %s returned %s: %s", url, r.status_code, r.text[:200])
+            category = _failure_category(r.status_code)
+            _record(provider, "failures")
+            _record(provider, category)
+            _record(provider, f"http_{r.status_code}")
+            logger.warning(
+                "llm_provider_failure provider=%s category=%s status=%s",
+                provider,
+                category,
+                r.status_code,
+            )
             return None
         return r.text
     except requests.RequestException as exc:
-        logger.warning("LLM provider %s request failed: %s", url, exc)
+        category = "timeout" if isinstance(exc, requests.Timeout) else "network_error"
+        _record(provider, "failures")
+        _record(provider, category)
+        logger.warning(
+            "llm_provider_failure provider=%s category=%s exception=%s",
+            provider,
+            category,
+            type(exc).__name__,
+        )
         return None
+
+
+def _openai_content(provider: str, raw: Optional[str]) -> Optional[str]:
+    if not raw:
+        return None
+    try:
+        text = json.loads(raw)["choices"][0]["message"]["content"]
+    except (KeyError, TypeError, ValueError, IndexError):
+        _record(provider, "failures")
+        _record(provider, "invalid_response")
+        logger.warning(
+            "llm_provider_failure provider=%s category=invalid_response",
+            provider,
+        )
+        return None
+    if not isinstance(text, str) or not text.strip():
+        _record(provider, "failures")
+        _record(provider, "empty_response")
+        return None
+    _record(provider, "successes")
+    return text
 
 
 def _via_groq(system: str, user: str) -> Optional[str]:
@@ -69,6 +191,7 @@ def _via_groq(system: str, user: str) -> Optional[str]:
     if not key:
         return None
     raw = _http_post(
+        "groq",
         "https://api.groq.com/openai/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
@@ -78,13 +201,7 @@ def _via_groq(system: str, user: str) -> Optional[str]:
             "max_tokens": 2000,
         },
     )
-    if not raw:
-        return None
-    import json
-    try:
-        return json.loads(raw)["choices"][0]["message"]["content"]
-    except (KeyError, ValueError, IndexError):
-        return None
+    return _openai_content("groq", raw)
 
 
 def _via_cerebras(system: str, user: str) -> Optional[str]:
@@ -92,6 +209,7 @@ def _via_cerebras(system: str, user: str) -> Optional[str]:
     if not key:
         return None
     raw = _http_post(
+        "cerebras",
         "https://api.cerebras.ai/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
@@ -105,13 +223,7 @@ def _via_cerebras(system: str, user: str) -> Optional[str]:
             "max_tokens": 2000,
         },
     )
-    if not raw:
-        return None
-    import json
-    try:
-        return json.loads(raw)["choices"][0]["message"]["content"]
-    except (KeyError, ValueError, IndexError):
-        return None
+    return _openai_content("cerebras", raw)
 
 
 def _via_mistral(system: str, user: str) -> Optional[str]:
@@ -119,6 +231,7 @@ def _via_mistral(system: str, user: str) -> Optional[str]:
     if not key:
         return None
     raw = _http_post(
+        "mistral",
         "https://api.mistral.ai/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
@@ -128,13 +241,7 @@ def _via_mistral(system: str, user: str) -> Optional[str]:
             "max_tokens": 2000,
         },
     )
-    if not raw:
-        return None
-    import json
-    try:
-        return json.loads(raw)["choices"][0]["message"]["content"]
-    except (KeyError, ValueError, IndexError):
-        return None
+    return _openai_content("mistral", raw)
 
 
 def _via_nvidia(system: str, user: str) -> Optional[str]:
@@ -146,6 +253,7 @@ def _via_nvidia(system: str, user: str) -> Optional[str]:
     if not key:
         return None
     raw = _http_post(
+        "nvidia_nim",
         "https://integrate.api.nvidia.com/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
@@ -157,13 +265,7 @@ def _via_nvidia(system: str, user: str) -> Optional[str]:
             "max_tokens": 2000,
         },
     )
-    if not raw:
-        return None
-    import json
-    try:
-        return json.loads(raw)["choices"][0]["message"]["content"]
-    except (KeyError, ValueError, IndexError):
-        return None
+    return _openai_content("nvidia_nim", raw)
 
 
 def _via_codestral(system: str, user: str) -> Optional[str]:
@@ -175,6 +277,7 @@ def _via_codestral(system: str, user: str) -> Optional[str]:
     if not key:
         return None
     raw = _http_post(
+        "codestral",
         "https://codestral.mistral.ai/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
@@ -184,13 +287,7 @@ def _via_codestral(system: str, user: str) -> Optional[str]:
             "max_tokens": 2000,
         },
     )
-    if not raw:
-        return None
-    import json
-    try:
-        return json.loads(raw)["choices"][0]["message"]["content"]
-    except (KeyError, ValueError, IndexError):
-        return None
+    return _openai_content("codestral", raw)
 
 
 def _via_sambanova(system: str, user: str) -> Optional[str]:
@@ -202,6 +299,7 @@ def _via_sambanova(system: str, user: str) -> Optional[str]:
     if not key:
         return None
     raw = _http_post(
+        "sambanova",
         "https://api.sambanova.ai/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
@@ -213,13 +311,7 @@ def _via_sambanova(system: str, user: str) -> Optional[str]:
             "max_tokens": 2000,
         },
     )
-    if not raw:
-        return None
-    import json
-    try:
-        return json.loads(raw)["choices"][0]["message"]["content"]
-    except (KeyError, ValueError, IndexError):
-        return None
+    return _openai_content("sambanova", raw)
 
 
 def _via_cloudflare(system: str, user: str) -> Optional[str]:
@@ -234,6 +326,7 @@ def _via_cloudflare(system: str, user: str) -> Optional[str]:
     if not key or not account:
         return None
     raw = _http_post(
+        "cloudflare",
         f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
@@ -245,13 +338,7 @@ def _via_cloudflare(system: str, user: str) -> Optional[str]:
             "max_tokens": 2000,
         },
     )
-    if not raw:
-        return None
-    import json
-    try:
-        return json.loads(raw)["choices"][0]["message"]["content"]
-    except (KeyError, ValueError, IndexError):
-        return None
+    return _openai_content("cloudflare", raw)
 
 
 def _via_llm7(system: str, user: str) -> Optional[str]:
@@ -264,6 +351,7 @@ def _via_llm7(system: str, user: str) -> Optional[str]:
     if not key:
         return None
     raw = _http_post(
+        "llm7",
         "https://api.llm7.io/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
@@ -273,13 +361,7 @@ def _via_llm7(system: str, user: str) -> Optional[str]:
             "max_tokens": 2000,
         },
     )
-    if not raw:
-        return None
-    import json
-    try:
-        return json.loads(raw)["choices"][0]["message"]["content"]
-    except (KeyError, ValueError, IndexError):
-        return None
+    return _openai_content("llm7", raw)
 
 
 def _via_openrouter(system: str, user: str) -> Optional[str]:
@@ -287,6 +369,7 @@ def _via_openrouter(system: str, user: str) -> Optional[str]:
     if not key:
         return None
     raw = _http_post(
+        "openrouter",
         "https://openrouter.ai/api/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
@@ -300,13 +383,7 @@ def _via_openrouter(system: str, user: str) -> Optional[str]:
             "provider": {"data_collection": "deny"},
         },
     )
-    if not raw:
-        return None
-    import json
-    try:
-        return json.loads(raw)["choices"][0]["message"]["content"]
-    except (KeyError, ValueError, IndexError):
-        return None
+    return _openai_content("openrouter", raw)
 
 
 def _via_huggingface(system: str, user: str) -> Optional[str]:
@@ -317,6 +394,7 @@ def _via_huggingface(system: str, user: str) -> Optional[str]:
         "HF_MODEL", "huggingface", "meta-llama/Llama-3.1-8B-Instruct"
     )
     raw = _http_post(
+        "huggingface",
         "https://router.huggingface.co/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
@@ -329,13 +407,7 @@ def _via_huggingface(system: str, user: str) -> Optional[str]:
             "temperature": 0.4,
         },
     )
-    if not raw:
-        return None
-    import json
-    try:
-        return json.loads(raw)["choices"][0]["message"]["content"]
-    except (KeyError, ValueError, IndexError):
-        return None
+    return _openai_content("huggingface", raw)
 
 
 DEFAULT_PROVIDERS: List[Callable[[str, str], Optional[str]]] = [
@@ -356,15 +428,28 @@ class LLMChain:
     """Try providers in order, return first non-empty response."""
 
     def __init__(self, providers: Optional[List[Callable[[str, str], Optional[str]]]] = None):
-        self.providers = providers or DEFAULT_PROVIDERS
+        self.providers = DEFAULT_PROVIDERS if providers is None else providers
 
     def complete(self, system: str, user: str) -> str:
-        for fn in self.providers:
+        _record("_chain", "calls")
+        attempted = []
+        for index, fn in enumerate(self.providers):
+            provider = getattr(fn, "__name__", repr(fn)).removeprefix("_via_")
+            attempted.append(provider)
             try:
                 text = fn(system, user)
             except Exception:
-                logger.exception("Provider %s raised", getattr(fn, "__name__", repr(fn)))
+                _record(provider, "chain_exceptions")
+                logger.exception("LLM provider %s raised", provider)
                 continue
             if text:
+                _record(provider, "selected")
+                _record("_chain", "successes")
+                _record("_chain", f"success_depth_{index + 1}")
+                if index:
+                    _record("_chain", "fallback_successes")
                 return text
+            _record(provider, "chain_empty")
+        _record("_chain", "exhausted")
+        logger.error("llm_chain_exhausted providers=%s", ",".join(attempted))
         return ""

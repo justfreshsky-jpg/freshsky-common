@@ -81,14 +81,12 @@ def register_global_rate_limits(
                           "/auth/google/callback", "/logout"),
     only_methods: tuple = ("POST",),
     owner_email: str = "admin@freshskyllc.com",
-    pro_bypass: Optional[Callable[[], bool]] = None,
 ) -> None:
     """Wire global per-IP and per-user rate limits on POST endpoints.
 
     Defaults give every IP up to ``ip_per_hour`` POSTs/hour and every signed-in
-    Google user up to ``user_per_day`` POSTs/day. Owner email and an optional
-    trusted-session callback bypass both. Health, status, and OAuth routes are
-    excluded from limiting.
+    Google user up to ``user_per_day`` POSTs/day. The owner email bypasses
+    both. Health, status, and OAuth routes are excluded from limiting.
 
     The limits are enforced *before* the freemium gate / view runs, so an
     abusive IP burning the IP-hour budget never reaches the LLM call site.
@@ -109,8 +107,6 @@ def register_global_rate_limits(
                 return None
         # Owner bypass
         if owner_email and (session.get("user_email") or "").lower() == owner_email:
-            return None
-        if pro_bypass and pro_bypass():
             return None
         # Per-IP first (short window, fast cutoff against bots)
         if not ip_limiter.check():

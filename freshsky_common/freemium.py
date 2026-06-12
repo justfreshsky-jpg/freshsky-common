@@ -18,15 +18,11 @@ Usage in app.py::
 
     check = register_freemium(
         app,
-        free_daily_limit=10,
         google_client_id=os.environ['GOOGLE_CLIENT_ID'],
         google_client_secret=os.environ['GOOGLE_CLIENT_SECRET'],
         stripe_secret_key=os.environ.get('STRIPE_SECRET_KEY', ''),
-        stripe_price_monthly=os.environ.get('STRIPE_PRICE_MONTHLY', ''),
-        stripe_price_yearly=os.environ.get('STRIPE_PRICE_YEARLY', ''),
         stripe_webhook_secret=os.environ.get('STRIPE_WEBHOOK_SECRET', ''),
         primary_url='https://foia.freshskyai.com/',
-        owner_email='admin@freshskyllc.com',
     )
 
     @app.route('/api/whatever', methods=['POST'])
@@ -44,12 +40,11 @@ from __future__ import annotations
 import logging
 import os
 import secrets
-from datetime import date
 from typing import Callable, Optional
 from urllib.parse import urlencode
 
 from flask import (
-    Flask, Response, g, jsonify, redirect, request, session, url_for,
+    Flask, Response, jsonify, redirect, request, session, url_for,
 )
 
 
@@ -59,18 +54,11 @@ logger = logging.getLogger(__name__)
 def register_freemium(
     app: Flask,
     *,
-    free_daily_limit: int = 10,
     google_client_id: str = '',
     google_client_secret: str = '',
     stripe_secret_key: str = '',
-    stripe_price_monthly: str = '',
-    stripe_price_yearly: str = '',
     stripe_webhook_secret: str = '',
     primary_url: str = '',
-    owner_email: str = '',
-    pro_pricing_label: str = 'Pro',
-    pro_monthly_dollars: str = '$1.99',
-    pro_yearly_dollars: str = '$9.99',
     community_mode: bool = False,
 ) -> Callable[[], Optional[Response]]:
     """Wire free-access routes onto ``app`` and return the gate function.
@@ -92,7 +80,6 @@ def register_freemium(
     stripe_enabled = bool(stripe_secret_key)
     primary_url = (primary_url or '').rstrip('/')
     redirect_uri = f'{primary_url}/auth/google/callback' if primary_url else ''
-    owner_email = (owner_email or '').strip().lower()
     # Community mode is retained for UI compatibility with civic-volunteer
     # apps, but every app now receives the same unrestricted access.
     # Three triggers (any one is enough):
@@ -116,20 +103,10 @@ def register_freemium(
     # This stub remains so existing call sites compile. Access is free and
     # unrestricted regardless of account or historical subscription state.
     def check() -> Optional[tuple]:
-        # Track usage in session for stats only (not enforced).
-        today = date.today().isoformat()
-        key = f'usage_{today}'
-        g.freemium_will_charge = True
-        g.freemium_usage_key = key
         return None
 
-    @app.after_request
-    def _charge_on_success(response):
-        if getattr(g, 'freemium_will_charge', False) and 200 <= response.status_code < 300:
-            key = getattr(g, 'freemium_usage_key', None)
-            if key:
-                session[key] = session.get(key, 0) + 1
-        return response
+    from .llm import install_provider_metrics
+    install_provider_metrics(app)
 
     # ─── GOOGLE OAUTH ────────────────────────────────────────────
     @app.route('/auth/google')
@@ -202,7 +179,6 @@ def register_freemium(
         session.permanent = True
         session['user_email'] = email
         session['user_name'] = name
-        session['is_pro'] = False
         if next_url.startswith('/') and not next_url.startswith('//'):
             return redirect(next_url)
         return redirect(url_for('index'))
@@ -223,7 +199,11 @@ def register_freemium(
     @app.route('/billing')
     def freemium_billing_portal():
         if not stripe_enabled:
-            return redirect(url_for('index'))
+            if (request.host or '').split(':')[0].lower() in {
+                'freshskyai.com', 'www.freshskyai.com',
+            }:
+                return redirect(url_for('index'))
+            return redirect('https://www.freshskyai.com/billing', code=302)
         if not session.get('user_email'):
             return redirect(url_for('freemium_google_login', next='/billing'))
         try:
@@ -255,50 +235,12 @@ def register_freemium(
             )
         except Exception:
             return 'Invalid signature', 400
-        # stripe.Webhook.construct_event returns a StripeObject (not a
-        # dict). Its attribute-access semantics treat `.get` as a field
-        # lookup and raise AttributeError. .to_dict() recursively coerces
-        # to plain Python types so the rest of this handler can use the
-        # familiar .get() / dict idioms.
         try:
             event_d = event.to_dict() if hasattr(event, 'to_dict') else dict(event)
             etype = event_d.get('type', '')
-            obj = event_d.get('data', {}).get('object', {}) or {}
         except Exception:
-            etype, obj = '', {}
+            etype = ''
         logger.info('freemium webhook: %s', etype)
-        # Persist historical subscription state for backward compatibility.
-        # Best-effort: webhook returns 200 even if Firestore write fails
-        # (Stripe will resend on 5xx; we don't want to block the receipt).
-        try:
-            email = ''
-            # checkout.session.completed → customer_email + customer
-            # customer.subscription.{created,updated,deleted} → customer
-            customer_id = obj.get('customer') or ''
-            email = (obj.get('customer_email') or
-                     obj.get('customer_details', {}).get('email') or '')
-            if not email and customer_id:
-                # Look up the customer to get its email
-                cust = stripe.Customer.retrieve(customer_id)
-                email = cust.get('email', '') or ''
-            if email:
-                if etype in ('checkout.session.completed',
-                             'customer.subscription.created',
-                             'customer.subscription.updated'):
-                    # Decide is_pro based on subscription status (if present)
-                    sub_status = obj.get('status') or ''
-                    if sub_status in ('active', 'trialing'):
-                        _persist_pro_state(email.lower(), True)
-                    elif sub_status in ('canceled', 'unpaid', 'incomplete_expired'):
-                        _persist_pro_state(email.lower(), False)
-                    else:
-                        # checkout.session.completed has no status field — treat as active
-                        if etype == 'checkout.session.completed':
-                            _persist_pro_state(email.lower(), True)
-                elif etype == 'customer.subscription.deleted':
-                    _persist_pro_state(email.lower(), False)
-        except Exception as exc:
-            logger.warning('webhook persist skipped: %s', exc)
         return '', 200
 
     # ─── EMAIL CAPTURE ───────────────────────────────────────────
@@ -344,9 +286,6 @@ def register_freemium(
             'google_auth_enabled': google_auth_enabled,
             'free_access': True,
             'full_access': True,
-            'is_pro': False,
-            'is_supporter': False,
-            'usage_today': 0,
             'daily_limit': None,
             'stripe_enabled': bool(stripe_enabled),
             'community_mode': community_request,
@@ -362,30 +301,10 @@ def register_freemium(
     return check
 
 
-# ─── HELPERS ────────────────────────────────────────────────────
-def _check_stripe_subscription(secret_key: str, enabled: bool, email: str) -> bool:
-    """Return True if ``email`` has at least one active Stripe subscription."""
-    if not enabled or not email:
-        return False
-    try:
-        import stripe
-        stripe.api_key = secret_key
-        customers = stripe.Customer.list(email=email, limit=10)
-        for c in customers.data:
-            subs = stripe.Subscription.list(customer=c.id, status='active', limit=5)
-            if subs.data:
-                return True
-        return False
-    except Exception as exc:
-        logger.warning('Stripe subscription check failed for %s: %s', email, exc)
-        return False
-
-
 # ─── FIRESTORE PERSISTENCE ──────────────────────────────────────────
 # Free tier: 1 GiB storage, 50K reads/day, 20K writes/day. Sufficient
-# for subscription state + email capture at any reasonable scale. Falls back
-# silently if Firestore client isn't installed or auth fails — system
-# remains functional, just without state sync or email capture.
+# for email capture at any reasonable scale. Falls back silently if the
+# Firestore client isn't installed or authentication fails.
 
 _FIRESTORE_CLIENT = None
 _FIRESTORE_TRIED = False
@@ -403,33 +322,6 @@ def _firestore():
     except Exception as exc:
         logger.info('Firestore unavailable: %s', exc)
     return _FIRESTORE_CLIENT
-
-
-def _persist_pro_state(email: str, is_pro: bool) -> None:
-    """Write {email → is_pro} to Firestore (collection: pro_users)."""
-    db = _firestore()
-    if not db or not email:
-        return
-    from google.cloud import firestore as _fs
-    db.collection('pro_users').document(email).set({
-        'is_pro': bool(is_pro),
-        'updated_at': _fs.SERVER_TIMESTAMP,
-    }, merge=True)
-
-
-def _read_pro_state(email: str):
-    """Return True/False if Firestore has a record for ``email``,
-    else None (caller falls through to other sources)."""
-    db = _firestore()
-    if not db or not email:
-        return None
-    try:
-        doc = db.collection('pro_users').document(email).get()
-        if doc.exists:
-            return bool(doc.to_dict().get('is_pro', False))
-    except Exception as exc:
-        logger.info('pro_users read failed for %s: %s', email, exc)
-    return None
 
 
 def _persist_email_capture(email: str, source: str) -> None:

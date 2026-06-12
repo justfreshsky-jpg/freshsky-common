@@ -9,6 +9,9 @@ Shared infrastructure for Fresh Sky LLC apps.
 - `caching` — Bounded LRU response cache with TTL.
 - `rate_limit` — Per-IP token-bucket rate limiter (Flask decorator).
 - `metrics` — Thread-safe counters.
+- `/metrics/providers` — Process-local provider attempts, successes, failure
+  classes, fallback depth, and chain exhaustion. No prompts or responses are
+  recorded.
 
 ## Install (editable, local)
 

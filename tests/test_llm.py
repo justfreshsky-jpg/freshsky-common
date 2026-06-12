@@ -1,6 +1,7 @@
 import json
 
 from freshsky_common import llm
+from freshsky_common.metrics import Metrics
 
 
 class FakeResponse:
@@ -81,3 +82,60 @@ def test_environment_model_override_wins_over_registry(monkeypatch):
     monkeypatch.setenv("GROQ_MODEL", "operator-model")
 
     assert llm._model_name("GROQ_MODEL", "groq", "fallback-model") == "operator-model"
+
+
+def test_provider_telemetry_classifies_rate_limits(monkeypatch):
+    monkeypatch.setattr(llm, "_PROVIDER_METRICS", Metrics())
+    monkeypatch.setenv("GROQ_API_KEY", "key")
+    monkeypatch.setattr(
+        llm.requests,
+        "post",
+        lambda *args, **kwargs: FakeResponse({"error": "limited"}, status_code=429),
+    )
+
+    assert llm._via_groq("system", "user") is None
+    snapshot = llm.provider_metrics_snapshot()
+    assert snapshot["providers"]["groq"] == {
+        "attempts": 1,
+        "failures": 1,
+        "rate_limited": 1,
+        "http_429": 1,
+    }
+
+
+def test_chain_telemetry_records_fallback_and_exhaustion(monkeypatch):
+    monkeypatch.setattr(llm, "_PROVIDER_METRICS", Metrics())
+
+    def empty_provider(system, user):
+        return None
+
+    def working_provider(system, user):
+        return "answer"
+
+    assert llm.LLMChain([empty_provider, working_provider]).complete("s", "u") == "answer"
+    snapshot = llm.provider_metrics_snapshot()
+    assert snapshot["chain"]["calls"] == 1
+    assert snapshot["chain"]["successes"] == 1
+    assert snapshot["chain"]["fallback_successes"] == 1
+    assert snapshot["chain"]["success_depth_2"] == 1
+    assert snapshot["providers"]["working_provider"]["selected"] == 1
+
+    monkeypatch.setattr(llm, "_PROVIDER_METRICS", Metrics())
+    assert llm.LLMChain([]).complete("s", "u") == ""
+    assert llm.provider_metrics_snapshot()["chain"]["exhausted"] == 1
+
+
+def test_provider_metrics_endpoint_is_private_data_free(monkeypatch):
+    from flask import Flask
+
+    monkeypatch.setattr(llm, "_PROVIDER_METRICS", Metrics())
+    llm._record("groq", "attempts")
+    app = Flask(__name__)
+    llm.install_provider_metrics(app)
+
+    response = app.test_client().get("/metrics/providers")
+    payload = response.get_json()
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store"
+    assert payload["providers"]["groq"]["attempts"] == 1
+    assert set(payload) == {"chain", "configured", "providers", "scope"}
