@@ -24,16 +24,14 @@ _PROVIDER_METRICS = Metrics()
 _PROVIDER_ENV_REQUIREMENTS = {
     "groq": (("GROQ_API_KEY", "GROQ_KEY"),),
     "cerebras": (("CEREBRAS_API_KEY", "CEREBRAS_KEY"),),
-    "nvidia_nim": (("NVIDIA_NIM_KEY",),),
     "mistral": (("MISTRAL_API_KEY", "MISTRAL_KEY"),),
-    "codestral": (("CODESTRAL_API_KEY",),),
     "sambanova": (("SAMBANOVA_API_KEY", "SAMBANOVA_KEY"),),
     "cloudflare": (
         ("CLOUDFLARE_API_KEY", "CLOUDFLARE_AI_TOKEN"),
         ("CLOUDFLARE_ACCOUNT_ID",),
     ),
+    "ollama": (("OLLAMA_API_KEY",),),
     "openrouter": (("OPENROUTER_API_KEY", "OPENROUTER_KEY"),),
-    "llm7": (("LLM7_API_KEY",),),
     "huggingface": (
         ("HF_API_KEY", "HUGGINGFACE_API_KEY", "HF_KEY", "HUGGINGFACE_KEY"),
     ),
@@ -244,52 +242,6 @@ def _via_mistral(system: str, user: str) -> Optional[str]:
     return _openai_content("mistral", raw)
 
 
-def _via_nvidia(system: str, user: str) -> Optional[str]:
-    # NVIDIA NIM (build.nvidia.com / integrate.api.nvidia.com) — US,
-    # OpenAI-compatible. 1k starter credits + 4k on request; ongoing
-    # rate-limited free tier of 40 req/min. Hosts Llama 3.3 70B,
-    # Mistral, Phi, Gemma, and many others.
-    key = os.environ.get("NVIDIA_NIM_KEY")
-    if not key:
-        return None
-    raw = _http_post(
-        "nvidia_nim",
-        "https://integrate.api.nvidia.com/v1/chat/completions",
-        {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-        {
-            "model": _model_name(
-                "NVIDIA_NIM_MODEL", "nvidia_nim", "meta/llama-3.3-70b-instruct"
-            ),
-            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-            "temperature": 0.4,
-            "max_tokens": 2000,
-        },
-    )
-    return _openai_content("nvidia_nim", raw)
-
-
-def _via_codestral(system: str, user: str) -> Optional[str]:
-    # Mistral Codestral — separate free tier from La Plateforme: 30 req/min,
-    # 2,000 req/day, commercial use EXPLICITLY allowed (the main Mistral
-    # free tier requires a data-training opt-in for commercial). Coding-
-    # tuned but handles general text fine. EU jurisdiction.
-    key = os.environ.get("CODESTRAL_API_KEY")
-    if not key:
-        return None
-    raw = _http_post(
-        "codestral",
-        "https://codestral.mistral.ai/v1/chat/completions",
-        {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
-        {
-            "model": _model_name("CODESTRAL_MODEL", "codestral", "codestral-latest"),
-            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-            "temperature": 0.4,
-            "max_tokens": 2000,
-        },
-    )
-    return _openai_content("codestral", raw)
-
-
 def _via_sambanova(system: str, user: str) -> Optional[str]:
     # SambaNova Cloud — RDU-accelerated, OpenAI-compatible, persistent free tier.
     # Default model is Meta-Llama-3.3-70B-Instruct (confirmed active May 2026);
@@ -341,27 +293,44 @@ def _via_cloudflare(system: str, user: str) -> Optional[str]:
     return _openai_content("cloudflare", raw)
 
 
-def _via_llm7(system: str, user: str) -> Optional[str]:
-    # LLM7.io — UK-based aggregator, donor-supported free tier (30 rpm
-    # anonymous, 120 rpm with token). OpenAI-compatible. The router picks
-    # the best available model regardless of what we ask for, so the
-    # "model" field is more of a hint than a constraint. No production
-    # SLA, but useful as a tail fallback when first-tier providers cap.
-    key = os.environ.get("LLM7_API_KEY")
+def _ollama_content(raw: Optional[str]) -> Optional[str]:
+    if not raw:
+        return None
+    try:
+        text = json.loads(raw)["message"]["content"]
+    except (KeyError, TypeError, ValueError):
+        _record("ollama", "failures")
+        _record("ollama", "invalid_response")
+        logger.warning(
+            "llm_provider_failure provider=ollama category=invalid_response"
+        )
+        return None
+    if not isinstance(text, str) or not text.strip():
+        _record("ollama", "failures")
+        _record("ollama", "empty_response")
+        return None
+    _record("ollama", "successes")
+    return text
+
+
+def _via_ollama(system: str, user: str) -> Optional[str]:
+    # Ollama Cloud has a permanent free plan and does not retain prompts or
+    # train on them. Cogito 2.1 is MIT-licensed for commercial use.
+    key = os.environ.get("OLLAMA_API_KEY")
     if not key:
         return None
     raw = _http_post(
-        "llm7",
-        "https://api.llm7.io/v1/chat/completions",
+        "ollama",
+        "https://ollama.com/api/chat",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
-            "model": _model_name("LLM7_MODEL", "llm7", "gpt-4o-mini"),
+            "model": _model_name("OLLAMA_MODEL", "ollama", "cogito-2.1:671b"),
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-            "temperature": 0.4,
-            "max_tokens": 2000,
+            "stream": False,
+            "options": {"temperature": 0.4, "num_predict": 2000},
         },
     )
-    return _openai_content("llm7", raw)
+    return _ollama_content(raw)
 
 
 def _via_openrouter(system: str, user: str) -> Optional[str]:
@@ -413,13 +382,11 @@ def _via_huggingface(system: str, user: str) -> Optional[str]:
 DEFAULT_PROVIDERS: List[Callable[[str, str], Optional[str]]] = [
     _via_groq,
     _via_cerebras,
-    _via_nvidia,
     _via_mistral,
-    _via_codestral,
     _via_sambanova,
     _via_cloudflare,
+    _via_ollama,
     _via_openrouter,
-    _via_llm7,
     _via_huggingface,
 ]
 

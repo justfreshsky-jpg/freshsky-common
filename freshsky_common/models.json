@@ -1,7 +1,7 @@
 {
   "_comment": "Reviewed model registry. The LLM chain reads these defaults when the corresponding *_MODEL environment variable is not set. The nightly workflow uses only catalogs that can establish safe eligibility, retains OpenRouter's rotating free router, and opens a proposal for operator review when a strictly newer model qualifies. No auto-merge. Hardcoded names in llm.py are emergency fallbacks for a missing or invalid packaged registry.",
 
-  "updated_at": "2026-06-05",
+  "updated_at": "2026-06-14",
 
   "providers": {
     "groq": {
@@ -25,20 +25,6 @@
       "prefer_size": "large",
       "notes": "La Plateforme free tier. mistral-large-latest auto-tracks their latest large model."
     },
-    "nvidia_nim": {
-      "env_var": "NVIDIA_NIM_MODEL",
-      "current": "meta/llama-3.3-70b-instruct",
-      "catalog_url": "https://integrate.api.nvidia.com/v1/models",
-      "prefer_size": "70b",
-      "notes": "NVIDIA NIM hosts many model families; we prefer Llama 3.x for chain consistency."
-    },
-    "codestral": {
-      "env_var": "CODESTRAL_MODEL",
-      "current": "codestral-latest",
-      "catalog_url": "",
-      "prefer_size": "22b",
-      "notes": "Code-specialized; auto-tracks via -latest tag."
-    },
     "sambanova": {
       "env_var": "SAMBANOVA_MODEL",
       "current": "Meta-Llama-3.3-70B-Instruct",
@@ -53,12 +39,12 @@
       "prefer_size": "8b",
       "notes": "Workers AI free tier; 8B variant is the most stable free model. Vision models (llava-1.5-7b-hf) available for multimodal."
     },
-    "llm7": {
-      "env_var": "LLM7_MODEL",
-      "current": "gpt-4o-mini",
-      "catalog_url": "https://api.llm7.io/v1/models",
-      "prefer_size": "small",
-      "notes": "Aggregator; routes to OAI-compatible models at no cost. gpt-4o-mini is the cheap default."
+    "ollama": {
+      "env_var": "OLLAMA_MODEL",
+      "current": "cogito-2.1:671b",
+      "catalog_url": "https://ollama.com/api/tags",
+      "prefer_size": "671b",
+      "notes": "Ollama Cloud free plan. Cogito 2.1 is MIT-licensed for commercial use; Ollama states cloud prompts are processed transiently and not used for training."
     },
     "openrouter": {
       "env_var": "OPENROUTER_MODEL",

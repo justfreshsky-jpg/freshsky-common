@@ -61,6 +61,51 @@ def test_huggingface_uses_current_chat_router(monkeypatch):
     assert urls == ["https://router.huggingface.co/v1/chat/completions"]
 
 
+def test_ollama_uses_commercial_model_and_native_response(monkeypatch):
+    calls = []
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        calls.append((url, headers, json))
+        return FakeResponse({"message": {"role": "assistant", "content": "answer"}})
+
+    monkeypatch.setenv("OLLAMA_API_KEY", "key")
+    monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+    monkeypatch.setattr(llm.requests, "post", fake_post)
+
+    assert llm._via_ollama("system", "user") == "answer"
+    assert calls[0][0] == "https://ollama.com/api/chat"
+    assert calls[0][1]["Authorization"] == "Bearer key"
+    assert calls[0][2]["model"] == "cogito-2.1:671b"
+    assert calls[0][2]["stream"] is False
+
+
+def test_removed_noncommercial_providers_are_not_configurable(monkeypatch):
+    monkeypatch.setenv("NVIDIA_NIM_KEY", "removed")
+    monkeypatch.setenv("CODESTRAL_API_KEY", "removed")
+    monkeypatch.setenv("LLM7_API_KEY", "removed")
+
+    configured = llm.configured_providers()
+    assert "nvidia_nim" not in configured
+    assert "codestral" not in configured
+    assert "llm7" not in configured
+    assert not hasattr(llm, "_via_nvidia")
+    assert not hasattr(llm, "_via_codestral")
+    assert not hasattr(llm, "_via_llm7")
+
+
+def test_default_provider_order_prefers_ollama_before_aggregators():
+    assert [provider.__name__ for provider in llm.DEFAULT_PROVIDERS] == [
+        "_via_groq",
+        "_via_cerebras",
+        "_via_mistral",
+        "_via_sambanova",
+        "_via_cloudflare",
+        "_via_ollama",
+        "_via_openrouter",
+        "_via_huggingface",
+    ]
+
+
 def test_provider_uses_reviewed_registry_default(monkeypatch):
     payloads = []
 
