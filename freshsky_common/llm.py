@@ -16,6 +16,11 @@ from typing import Callable, List, Optional
 import requests
 
 from .metrics import Metrics
+from .privacy import (
+    EDUCATION_PRIVACY_PROFILE,
+    SensitiveDataError,
+    enforce_deidentified_education_input,
+)
 
 logger = logging.getLogger(__name__)
 _PROVIDER_METRICS = Metrics()
@@ -61,6 +66,10 @@ def _load_model_defaults() -> dict[str, str]:
 _MODEL_DEFAULTS = _load_model_defaults()
 
 
+def _env_enabled(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 def _first_env(*names: str) -> str:
     for name in names:
         value = os.environ.get(name, "")
@@ -73,13 +82,31 @@ def _model_name(env_var: str, provider: str, fallback: str) -> str:
     return os.environ.get(env_var) or _MODEL_DEFAULTS.get(provider) or fallback
 
 
-def configured_providers() -> list[str]:
+def _privacy_profile(value: Optional[str] = None) -> Optional[str]:
+    profile = (value if value is not None else os.environ.get("LLM_PRIVACY_PROFILE", "")).strip()
+    if not profile:
+        return None
+    if profile != EDUCATION_PRIVACY_PROFILE:
+        raise ValueError(f"Unknown LLM privacy profile: {profile}")
+    return profile
+
+
+def configured_providers(privacy_profile: Optional[str] = None) -> list[str]:
     """Return configured provider names without exposing credentials."""
-    return [
+    configured = [
         provider
         for provider, requirements in _PROVIDER_ENV_REQUIREMENTS.items()
         if all(any(os.environ.get(name) for name in aliases) for aliases in requirements)
     ]
+    profile = _privacy_profile(privacy_profile)
+    if profile == EDUCATION_PRIVACY_PROFILE:
+        allowed = {"cloudflare", "ollama", "cerebras", "sambanova"}
+        if _env_enabled("GROQ_ZDR_CONFIRMED"):
+            allowed.add("groq")
+        return [provider for provider in configured if provider in allowed]
+    if not _env_enabled("MISTRAL_TRAINING_OPTOUT_CONFIRMED"):
+        configured = [provider for provider in configured if provider != "mistral"]
+    return configured
 
 
 def provider_metrics_snapshot() -> dict:
@@ -225,6 +252,8 @@ def _via_cerebras(system: str, user: str) -> Optional[str]:
 
 
 def _via_mistral(system: str, user: str) -> Optional[str]:
+    if not _env_enabled("MISTRAL_TRAINING_OPTOUT_CONFIRMED"):
+        return None
     key = _first_env("MISTRAL_API_KEY", "MISTRAL_KEY")
     if not key:
         return None
@@ -349,7 +378,7 @@ def _via_openrouter(system: str, user: str) -> Optional[str]:
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.4,
             "max_tokens": 2000,
-            "provider": {"data_collection": "deny"},
+            "provider": {"data_collection": "deny", "zdr": True},
         },
     )
     return _openai_content("openrouter", raw)
@@ -391,17 +420,52 @@ DEFAULT_PROVIDERS: List[Callable[[str, str], Optional[str]]] = [
 ]
 
 
+def _via_groq_with_confirmed_zdr(system: str, user: str) -> Optional[str]:
+    if not _env_enabled("GROQ_ZDR_CONFIRMED"):
+        return None
+    return _via_groq(system, user)
+
+
+_via_groq_with_confirmed_zdr._provider_name = "groq"  # type: ignore[attr-defined]
+
+
+EDUCATION_PROVIDERS: List[Callable[[str, str], Optional[str]]] = [
+    _via_cloudflare,
+    _via_ollama,
+    _via_cerebras,
+    _via_groq_with_confirmed_zdr,
+    _via_sambanova,
+]
+
+
 class LLMChain:
     """Try providers in order, return first non-empty response."""
 
-    def __init__(self, providers: Optional[List[Callable[[str, str], Optional[str]]]] = None):
-        self.providers = DEFAULT_PROVIDERS if providers is None else providers
+    def __init__(
+        self,
+        providers: Optional[List[Callable[[str, str], Optional[str]]]] = None,
+        *,
+        privacy_profile: Optional[str] = None,
+    ):
+        self.privacy_profile = _privacy_profile(privacy_profile)
+        if providers is not None:
+            self.providers = providers
+        elif self.privacy_profile == EDUCATION_PRIVACY_PROFILE:
+            self.providers = EDUCATION_PROVIDERS
+        else:
+            self.providers = DEFAULT_PROVIDERS
 
     def complete(self, system: str, user: str) -> str:
+        if self.privacy_profile == EDUCATION_PRIVACY_PROFILE:
+            enforce_deidentified_education_input(user)
         _record("_chain", "calls")
         attempted = []
         for index, fn in enumerate(self.providers):
-            provider = getattr(fn, "__name__", repr(fn)).removeprefix("_via_")
+            provider = getattr(
+                fn,
+                "_provider_name",
+                getattr(fn, "__name__", repr(fn)).removeprefix("_via_"),
+            )
             attempted.append(provider)
             try:
                 text = fn(system, user)

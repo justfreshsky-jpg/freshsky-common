@@ -11,4 +11,4 @@ Modules:
     revenue    — Affiliate cards + GA4 + SEO routes (sitemap.xml, robots.txt).
 """
 
-__version__ = "0.2.0"
+__version__ = "0.4.0"

@@ -5,7 +5,8 @@ Pip-installable from git (`freshsky-common @ git+https://github.com/justfreshsky
 ## Modules
 - **`security.py`** — `install_security_headers(app)`: CSP, HSTS, X-Frame-Options, Referrer-Policy, etc.
 - **`rate_limit.py`** — simple in-memory rate limiter (per-IP).
-- **`llm.py`** — unified 8-provider fallback chain: Groq, Cerebras, Mistral, SambaNova, Cloudflare Workers AI, Ollama Cloud, OpenRouter, Hugging Face. Reads keys from env and reviewed model defaults from `models.json`. Providers without free commercial-use terms, card-backed providers, and direct Gemini are excluded.
+- **`llm.py`** — unified provider fallback. Mistral requires `MISTRAL_TRAINING_OPTOUT_CONFIRMED=true`; OpenRouter requests no collection and ZDR.
+- **`privacy.py`** — `education_deidentified` profile, likely student-PII detection, and fail-closed `SensitiveDataError`. Education routing permits Cloudflare, Ollama, Cerebras, Groq only with `GROQ_ZDR_CONFIRMED=true`, and SambaNova.
 - **`caching.py`** — memoization helpers for prompt + response caching.
 - **`metrics.py`** — thread-safe in-memory counters (per-app, non-persistent).
 - **`revenue.py`** — SEO (robots, sitemap, humans), GA4 + OG + schema.org + FAQ schema context processor, plus cross-promo + trust-line helpers, category-gated for HULEC.

@@ -279,9 +279,9 @@ _FAQ_BY_CATEGORY = {
     ],
     'education': [
         ('Is this approved by my school district?',
-         'No formal approval is required. This is an educational tool that helps parents and teachers understand documents and prepare for meetings. It does not replace any official school process.'),
+         'The public tool is for de-identified scenarios. A school must follow district policy and obtain any required authorization or data-processing agreement before using a vendor with FERPA-covered records.'),
         ('Is student data stored?',
-         'No. The tool does not store any input. We do not collect student PII; the AI is instructed not to ask for any.'),
+         'Do not submit student PII or education records. Education apps reject several common identifier patterns before provider calls, but automated detection is not a substitute for removing all identifying details.'),
         ('Does this work for IEP, 504, or ELL situations?',
          'Yes. The tools are designed around K-12 special education and English-learner contexts, with multilingual support so non-English-speaking parents can fully participate.'),
         ('Is this free for teachers and parents?',

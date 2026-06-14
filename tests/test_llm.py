@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from freshsky_common import llm
 from freshsky_common.metrics import Metrics
 
@@ -14,7 +16,7 @@ class FakeResponse:
         return self._payload
 
 
-def test_openrouter_defaults_to_free_and_denies_collection(monkeypatch):
+def test_openrouter_defaults_to_free_denies_collection_and_requires_zdr(monkeypatch):
     payloads = []
 
     def fake_post(url, headers=None, json=None, timeout=None):
@@ -28,6 +30,22 @@ def test_openrouter_defaults_to_free_and_denies_collection(monkeypatch):
     assert llm._via_openrouter("system", "user") == "answer"
     assert payloads[0]["model"] == "openrouter/free"
     assert payloads[0]["provider"]["data_collection"] == "deny"
+    assert payloads[0]["provider"]["zdr"] is True
+
+
+def test_mistral_requires_training_optout_confirmation(monkeypatch):
+    monkeypatch.setenv("MISTRAL_API_KEY", "key")
+    monkeypatch.delenv("MISTRAL_TRAINING_OPTOUT_CONFIRMED", raising=False)
+    monkeypatch.setattr(
+        llm.requests,
+        "post",
+        lambda *args, **kwargs: (_ for _ in ()).throw(
+            AssertionError("Mistral must not be called without confirmation")
+        ),
+    )
+
+    assert llm._via_mistral("system", "user") is None
+    assert "mistral" not in llm.configured_providers()
 
 
 def test_legacy_batch_secret_names_remain_supported(monkeypatch):
@@ -104,6 +122,35 @@ def test_default_provider_order_prefers_ollama_before_aggregators():
         "_via_openrouter",
         "_via_huggingface",
     ]
+
+
+def test_education_profile_uses_only_reviewed_direct_providers(monkeypatch):
+    monkeypatch.delenv("GROQ_ZDR_CONFIRMED", raising=False)
+    chain = llm.LLMChain(privacy_profile="education_deidentified")
+    assert [getattr(provider, "_provider_name", provider.__name__) for provider in chain.providers] == [
+        "_via_cloudflare",
+        "_via_ollama",
+        "_via_cerebras",
+        "groq",
+        "_via_sambanova",
+    ]
+
+
+def test_education_profile_rejects_pii_before_provider_call(monkeypatch):
+    monkeypatch.setattr(llm, "_PROVIDER_METRICS", Metrics())
+    calls = []
+
+    def provider(system, user):
+        calls.append((system, user))
+        return "answer"
+
+    chain = llm.LLMChain([provider], privacy_profile="education_deidentified")
+    with pytest.raises(llm.SensitiveDataError) as exc:
+        chain.complete("system", "Student: Maya Johnson\nEmail: maya@example.com")
+
+    assert exc.value.categories == ("email", "labeled_name")
+    assert calls == []
+    assert llm.provider_metrics_snapshot()["chain"] == {}
 
 
 def test_provider_uses_reviewed_registry_default(monkeypatch):

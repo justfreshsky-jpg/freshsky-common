@@ -4,7 +4,8 @@ Shared infrastructure for Fresh Sky LLC apps.
 
 ## Modules
 
-- `llm` — Multi-provider LLM fallback chain: Groq, Cerebras, Mistral, SambaNova, Cloudflare Workers AI, Ollama Cloud, OpenRouter, and Hugging Face. Providers that lack free commercial-use terms or require card-backed billing are excluded, as is Gemini's free tier because free-tier prompts may be used to improve Google products.
+- `llm` — Multi-provider fallback. Mistral requires a confirmed training opt-out, and OpenRouter requests both no data collection and zero retention.
+- `privacy` — Fail-closed education controls. `LLMChain(privacy_profile="education_deidentified")` rejects likely student identifiers before network calls and permits only Cloudflare, Ollama, Cerebras, confirmed-ZDR Groq, and SambaNova.
 - `security` — Security headers + input sanitization + LLM output cleaning.
 - `caching` — Bounded LRU response cache with TTL.
 - `rate_limit` — Per-IP token-bucket rate limiter (Flask decorator).
@@ -50,6 +51,17 @@ def ask():
     metrics.incr("requests", "ask")
     return {"result": out}
 ```
+
+Education-facing applications must use the strict profile and must not cache
+user prompts or model responses:
+
+```python
+chain = LLMChain(privacy_profile="education_deidentified")
+```
+
+Set `GROQ_ZDR_CONFIRMED=true` only after enabling Zero Data Retention on the
+Groq account. Set `MISTRAL_TRAINING_OPTOUT_CONFIRMED=true` only after disabling
+anonymous improvement data; Mistral remains excluded from the education profile.
 
 ## Adoption
 
