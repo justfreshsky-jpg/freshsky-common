@@ -153,6 +153,24 @@ def test_education_profile_rejects_pii_before_provider_call(monkeypatch):
     assert llm.provider_metrics_snapshot()["chain"] == {}
 
 
+def test_us_public_profile_uses_restricted_providers_and_rejects_pii(monkeypatch):
+    calls = []
+
+    def provider(system, user):
+        calls.append((system, user))
+        return "answer"
+
+    chain = llm.LLMChain([provider], privacy_profile="us_public")
+    with pytest.raises(llm.SensitiveDataError) as exc:
+        chain.complete("system", "Account number: AB1234567")
+
+    assert exc.value.categories == ("account_number",)
+    assert calls == []
+
+    restricted = llm.LLMChain(privacy_profile="us_public")
+    assert restricted.providers == llm.US_RESTRICTED_PROVIDERS
+
+
 def test_provider_uses_reviewed_registry_default(monkeypatch):
     payloads = []
 

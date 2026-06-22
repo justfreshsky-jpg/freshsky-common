@@ -18,8 +18,10 @@ import requests
 from .metrics import Metrics
 from .privacy import (
     EDUCATION_PRIVACY_PROFILE,
+    US_PUBLIC_PRIVACY_PROFILE,
     SensitiveDataError,
     enforce_deidentified_education_input,
+    enforce_deidentified_public_input,
 )
 
 logger = logging.getLogger(__name__)
@@ -86,7 +88,7 @@ def _privacy_profile(value: Optional[str] = None) -> Optional[str]:
     profile = (value if value is not None else os.environ.get("LLM_PRIVACY_PROFILE", "")).strip()
     if not profile:
         return None
-    if profile != EDUCATION_PRIVACY_PROFILE:
+    if profile not in {EDUCATION_PRIVACY_PROFILE, US_PUBLIC_PRIVACY_PROFILE}:
         raise ValueError(f"Unknown LLM privacy profile: {profile}")
     return profile
 
@@ -99,7 +101,7 @@ def configured_providers(privacy_profile: Optional[str] = None) -> list[str]:
         if all(any(os.environ.get(name) for name in aliases) for aliases in requirements)
     ]
     profile = _privacy_profile(privacy_profile)
-    if profile == EDUCATION_PRIVACY_PROFILE:
+    if profile in {EDUCATION_PRIVACY_PROFILE, US_PUBLIC_PRIVACY_PROFILE}:
         allowed = {"cloudflare", "ollama", "cerebras", "sambanova"}
         if _env_enabled("GROQ_ZDR_CONFIRMED"):
             allowed.add("groq")
@@ -429,13 +431,14 @@ def _via_groq_with_confirmed_zdr(system: str, user: str) -> Optional[str]:
 _via_groq_with_confirmed_zdr._provider_name = "groq"  # type: ignore[attr-defined]
 
 
-EDUCATION_PROVIDERS: List[Callable[[str, str], Optional[str]]] = [
+US_RESTRICTED_PROVIDERS: List[Callable[[str, str], Optional[str]]] = [
     _via_cloudflare,
     _via_ollama,
     _via_cerebras,
     _via_groq_with_confirmed_zdr,
     _via_sambanova,
 ]
+EDUCATION_PROVIDERS = US_RESTRICTED_PROVIDERS
 
 
 class LLMChain:
@@ -450,14 +453,16 @@ class LLMChain:
         self.privacy_profile = _privacy_profile(privacy_profile)
         if providers is not None:
             self.providers = providers
-        elif self.privacy_profile == EDUCATION_PRIVACY_PROFILE:
-            self.providers = EDUCATION_PROVIDERS
+        elif self.privacy_profile in {EDUCATION_PRIVACY_PROFILE, US_PUBLIC_PRIVACY_PROFILE}:
+            self.providers = US_RESTRICTED_PROVIDERS
         else:
             self.providers = DEFAULT_PROVIDERS
 
     def complete(self, system: str, user: str) -> str:
         if self.privacy_profile == EDUCATION_PRIVACY_PROFILE:
             enforce_deidentified_education_input(user)
+        elif self.privacy_profile == US_PUBLIC_PRIVACY_PROFILE:
+            enforce_deidentified_public_input(user)
         _record("_chain", "calls")
         attempted = []
         for index, fn in enumerate(self.providers):

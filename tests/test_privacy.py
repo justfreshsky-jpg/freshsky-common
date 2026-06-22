@@ -3,7 +3,9 @@ import pytest
 from freshsky_common.privacy import (
     SensitiveDataError,
     detect_education_pii,
+    detect_sensitive_data,
     enforce_deidentified_education_input,
+    enforce_deidentified_public_input,
 )
 
 
@@ -36,4 +38,25 @@ def test_exception_exposes_categories_not_source_text():
     with pytest.raises(SensitiveDataError) as exc:
         enforce_deidentified_education_input("Student: Maya Johnson")
     assert exc.value.categories == ("labeled_name",)
+    assert "Maya" not in str(exc.value)
+    assert "student identifiers" in str(exc.value)
+
+
+@pytest.mark.parametrize(
+    ("text", "category"),
+    [
+        ("Name: Maya Johnson", "labeled_name"),
+        ("Account number: AB1234567", "account_number"),
+        ("Card 4242 4242 4242 4242", "payment_card"),
+    ],
+)
+def test_public_profile_detects_general_identifiers(text, category):
+    assert category in detect_sensitive_data(text)
+
+
+def test_public_profile_uses_general_error_without_source_text():
+    with pytest.raises(SensitiveDataError) as exc:
+        enforce_deidentified_public_input("Name: Maya Johnson")
+    assert exc.value.categories == ("labeled_name",)
+    assert "personal identifiers" in str(exc.value)
     assert "Maya" not in str(exc.value)
