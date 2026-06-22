@@ -7,18 +7,10 @@ Two things every app gets for free:
 """
 from __future__ import annotations
 
-import json
-import logging
 import os
-import pathlib
-import threading
-import time as _time
-import urllib.request
 from typing import Optional
 
 from flask import Flask, Response, jsonify
-
-_log = logging.getLogger(__name__)
 
 # ─── CATEGORIES ───────────────────────────────────────────
 # Each app declares its category at install time. Used by cross-promo,
@@ -29,65 +21,14 @@ CATEGORIES = {
 }
 
 
-_PARTNERS_PATH = pathlib.Path(__file__).parent / 'partners.json'
-# When set (e.g. https://storage.googleapis.com/fresh-sky-config/partners.json),
-# the lib pulls the JSON from this URL with a TTL refresh — so affiliate-card
-# updates ship to the whole portfolio without bulk-redeploying every app.
-# Falls back to the bundled file on any fetch error.
-_PARTNERS_URL = os.environ.get('PARTNERS_URL', '').strip()
-_PARTNERS_TTL = int(os.environ.get('PARTNERS_TTL_SECONDS', '3600'))  # 1 hr default
-
-
-def _load_partners_local() -> dict:
-    try:
-        with _PARTNERS_PATH.open() as fh:
-            return json.load(fh)
-    except (OSError, ValueError):
-        return {}
-
-
-def _load_partners_remote(url: str) -> Optional[dict]:
-    try:
-        req = urllib.request.Request(url, headers={'User-Agent': 'freshsky-common/1.0'})
-        with urllib.request.urlopen(req, timeout=3) as resp:
-            if resp.status != 200:
-                return None
-            data = json.loads(resp.read().decode('utf-8'))
-            if isinstance(data, dict):
-                return data
-            return None
-    except Exception as exc:
-        _log.info('partners remote fetch failed (%s); using bundled fallback', exc)
-        return None
-
-
-_PARTNERS_CACHE = _load_partners_local()
-_PARTNERS_CACHE_TS = 0.0
-_PARTNERS_LOCK = threading.Lock()
-
-
-def _maybe_refresh_partners() -> None:
-    global _PARTNERS_CACHE, _PARTNERS_CACHE_TS
-    if not _PARTNERS_URL:
-        return
-    now = _time.time()
-    if (now - _PARTNERS_CACHE_TS) < _PARTNERS_TTL:
-        return
-    with _PARTNERS_LOCK:
-        if (_time.time() - _PARTNERS_CACHE_TS) < _PARTNERS_TTL:
-            return
-        remote = _load_partners_remote(_PARTNERS_URL)
-        if remote is not None:
-            _PARTNERS_CACHE = remote
-        _PARTNERS_CACHE_TS = _time.time()
-
-
 def partners_for_category(category: str) -> list[dict]:
-    """Returns a list of {name, url, blurb} dicts for the given category, or
-    an empty list if no partners are configured (in which case the consuming
-    template's JS hides the 'Helpful services' section entirely)."""
-    _maybe_refresh_partners()
-    return _PARTNERS_CACHE.get('by_category', {}).get(category, []) or []
+    """Return no commercial partner offers.
+
+    The endpoint remains available for compatibility with older templates;
+    those templates hide their partner section when this list is empty.
+    """
+    del category
+    return []
 
 
 def register_seo_routes(app: Flask, slug: str, brand: str, primary_url: str) -> None:
@@ -121,7 +62,7 @@ def register_seo_routes(app: Flask, slug: str, brand: str, primary_url: str) -> 
         return Response(
             f'/* {brand} */\n'
             'Built by Fresh Sky LLC.\n'
-            'Tools that help people; revenue from clearly disclosed partners.\n'
+            'Free specialized AI tools for public use. Optional donations support the portfolio.\n'
             f'App: {slug}\n',
             mimetype='text/plain',
         )
@@ -161,30 +102,9 @@ def ga4_snippet(measurement_id: Optional[str] = None) -> str:
 
 
 def adsense_snippet(category: str = '', client_id: Optional[str] = None) -> str:
-    """Return the Google AdSense Auto Ads tag when configured.
-
-    Ads are env-driven so turning them on only requires setting the publisher
-    id on Cloud Run. Civic apps intentionally stay ad-free by default.
-    """
-    if category == 'civic':
-        return ''
-    cid = (
-        client_id
-        or os.environ.get('ADSENSE_CLIENT_ID', '').strip()
-        or os.environ.get('GOOGLE_ADSENSE_CLIENT_ID', '').strip()
-        or os.environ.get('ADSENSE_PUBLISHER_ID', '').strip()
-    )
-    if not cid:
-        return ''
-    if cid.startswith('pub-'):
-        cid = f'ca-{cid}'
-    if not cid.startswith('ca-pub-'):
-        return ''
-    return (
-        '<script async '
-        'src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js'
-        f'?client={cid}" crossorigin="anonymous"></script>\n'
-    )
+    """Return no advertising markup; the portfolio is donation-supported."""
+    del category, client_id
+    return ''
 
 
 _CATEGORY_APP_TYPE = {
@@ -545,7 +465,7 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
     def _affiliates():
         return jsonify(
             partners=partners_for_category(category),
-            disclosure=_PARTNERS_CACHE.get('_disclosure_text', ''),
+            disclosure='',
         )
 
     # Privacy + Terms: auto-registered with shared boilerplate. Apps can

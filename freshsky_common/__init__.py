@@ -8,7 +8,7 @@ Modules:
     caching    — Simple in-memory response cache.
     rate_limit — Token-bucket / per-IP rate limiter.
     metrics    — Lightweight thread-safe metrics counter.
-    revenue    — Affiliate cards + GA4 + SEO routes (sitemap.xml, robots.txt).
+    revenue    — GA4 + SEO routes (sitemap.xml, robots.txt) and portfolio links.
 """
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
