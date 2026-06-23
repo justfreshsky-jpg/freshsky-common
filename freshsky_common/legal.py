@@ -63,7 +63,7 @@ _PRIVACY_TEMPLATE = """<!DOCTYPE html>
 <p>This tool is intended for adults (or the parents/guardians of children). We do not knowingly collect data from anyone under 13. If you believe a child has used the tool, contact us and we'll delete what we can.</p>
 
 <h2>Your rights</h2>
-<p>Because we don't collect personal information, there's nothing to delete or export. If you have a question about a specific request you made, or you believe we've made a mistake, contact us via the hub: <a href="https://www.freshskyai.com/#contact">freshskyai.com/#contact</a>.</p>
+<p>Because we don't collect personal information, there's nothing to delete or export. If you have a question about a specific request you made, or you believe we've made a mistake, contact us via the hub: <a href="https://www.freshskyai.com/contact">freshskyai.com/contact</a>.</p>
 
 <h2>Changes</h2>
 <p>If this policy changes meaningfully, we'll update the date at the top. We'll never quietly start collecting more.</p>
@@ -115,7 +115,7 @@ _TERMS_TEMPLATE = """<!DOCTYPE html>
 <p>We may update these terms. Continuing to use the tool after a change means you accept the new version. The date at the top tells you when the current version was published.</p>
 
 <h2>Contact</h2>
-<p>Questions, concerns, complaints, kudos: <a href="https://www.freshskyai.com/#contact">freshskyai.com/#contact</a>.</p>
+<p>Questions, concerns, complaints, kudos: <a href="https://www.freshskyai.com/contact">freshskyai.com/contact</a>.</p>
 
 <p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/privacy">Privacy Policy</a> · <a href="https://www.freshskyai.com/donate">Donate</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
 </body></html>"""
