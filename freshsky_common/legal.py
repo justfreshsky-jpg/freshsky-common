@@ -34,7 +34,7 @@ _PRIVACY_TEMPLATE = """<!DOCTYPE html>
 <h2>What we collect</h2>
 <p>We try hard to collect as little as possible. Specifically:</p>
 <ul>
-  <li><strong>What you type into the tool.</strong> Your input is sent to AI providers (Groq, Cerebras, Mistral, OpenRouter, Hugging Face, or other configured fallback providers) so they can generate a response. We do not store this input on our servers, and we do not associate it with you.</li>
+  <li><strong>What you type into the tool.</strong> Your input is sent to the currently approved Fresh Sky AI provider pool, such as Cloudflare Workers AI, Ollama Cloud, Cerebras, SambaNova, or Groq only when zero-data-retention terms are confirmed. We do not store this input on our servers, and we do not associate it with you.</li>
   <li><strong>A session cookie.</strong> Used only to remember preferences and sign-in state. It expires when you close your browser.</li>
   <li><strong>Standard server logs.</strong> Cloud Run records request paths, status codes, IP address, and timestamps for security and debugging. These rotate automatically and are never tied to your input or output.</li>
   <li><strong>Anonymous analytics.</strong> Google Analytics 4 tracks page views and basic interactions to help us understand which tools are useful. IPs are anonymized; we do not store any personally identifiable information.</li>
@@ -49,7 +49,7 @@ _PRIVACY_TEMPLATE = """<!DOCTYPE html>
 </ul>
 
 <h2>What the AI sees</h2>
-<p>The AI providers above receive your input to generate a reply. Each has its own privacy, retention, and abuse-prevention terms. Do not enter Social Security numbers, account numbers, student records, medical records, or other sensitive personal information.</p>
+<p>The approved AI providers above receive your input to generate a reply. Each has its own privacy, retention, and abuse-prevention terms. Do not enter Social Security numbers, account numbers, student records, medical records, or other sensitive personal information.</p>
 
 <h2>Third parties</h2>
 <ul>
