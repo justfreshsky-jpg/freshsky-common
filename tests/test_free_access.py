@@ -1,5 +1,6 @@
 import sys
 from types import SimpleNamespace
+from urllib.parse import parse_qs, urlparse
 
 from flask import Flask
 
@@ -92,3 +93,27 @@ def test_civic_host_has_the_same_full_access():
         "/subscribe",
         headers={"Host": "nfirs.freshskyai.com"},
     ).location == "https://www.freshskyai.com/donate"
+
+
+def test_optional_public_routes_are_disabled_by_default():
+    client = make_app().test_client()
+    assert client.post("/api/notify", json={"email": "person@example.com"}).status_code == 404
+    assert client.get("/metrics/providers").status_code == 404
+
+
+def test_google_login_uses_fixed_callback_and_nonce():
+    app = make_app(
+        google_client_id="client.apps.googleusercontent.com",
+        google_client_secret="secret",
+        primary_url="https://www.freshskyai.com",
+    )
+    response = app.test_client().get(
+        "/auth/google?next=/billing",
+        headers={"Host": "attacker.example"},
+    )
+    query = parse_qs(urlparse(response.location).query)
+    assert query["redirect_uri"] == [
+        "https://www.freshskyai.com/auth/google/callback"
+    ]
+    assert query["nonce"][0]
+    assert query["state"][0]
