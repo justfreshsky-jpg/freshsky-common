@@ -246,6 +246,7 @@ def test_provider_metrics_endpoint_is_private_data_free(monkeypatch):
     response = app.test_client().get("/metrics/providers")
     payload = response.get_json()
     assert response.status_code == 200
-    assert response.headers["Cache-Control"] == "no-store"
+    assert response.headers["Cache-Control"] == "private, no-store"
+    assert response.headers["X-Robots-Tag"] == "noindex, nofollow, noarchive"
     assert payload["providers"]["groq"]["attempts"] == 1
     assert set(payload) == {"chain", "configured", "providers", "scope"}

@@ -132,7 +132,8 @@ def install_provider_metrics(app, path: str = "/metrics/providers") -> None:
         from flask import jsonify
 
         response = jsonify(provider_metrics_snapshot())
-        response.headers["Cache-Control"] = "no-store"
+        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
         return response
 
     app.add_url_rule(path, endpoint, _provider_metrics_response, methods=["GET"])
