@@ -14,6 +14,8 @@ Shared infrastructure for Fresh Sky LLC apps.
 - `/metrics/providers` — Process-local provider attempts, successes, failure
   classes, fallback depth, and chain exhaustion. No prompts or responses are
   recorded.
+- Rate-limit responses include `Retry-After`; routes passed through
+  `no_store_paths` also receive private/no-store and noindex controls.
 
 ## Install (editable, local)
 

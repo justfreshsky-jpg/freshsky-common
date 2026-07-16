@@ -69,7 +69,8 @@ def install_security_headers(
                 "max-age=31536000; includeSubDomains",
             )
         if request.path in no_store_paths:
-            resp.headers["Cache-Control"] = "no-store"
+            resp.headers["Cache-Control"] = "private, no-store"
+            resp.headers.setdefault("X-Robots-Tag", "noindex, nofollow, noarchive")
         return resp
 
     # ── Portfolio-wide AI Planner widget injection ─────────────────────

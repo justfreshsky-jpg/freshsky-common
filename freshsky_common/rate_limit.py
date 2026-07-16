@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import threading
 import time
+from math import ceil
 from collections import defaultdict
 from typing import Callable, Optional
 
@@ -40,19 +41,23 @@ class RateLimiter:
     def _client_key(self) -> str:
         return self.key_fn()
 
-    def check(self) -> bool:
+    def check_with_retry_after(self) -> tuple[bool, int]:
         now = time.time()
         key = self._client_key()
         if not key:
-            return True  # nothing to limit (anonymous + unknown)
+            return True, 0  # nothing to limit (anonymous + unknown)
         with self._lock:
             history = self._buckets[key]
             cutoff = now - self.window
             history[:] = [t for t in history if t > cutoff]
             if len(history) >= self.max_requests:
-                return False
+                return False, max(1, ceil(history[0] + self.window - now))
             history.append(now)
-        return True
+        return True, 0
+
+    def check(self) -> bool:
+        allowed, _ = self.check_with_retry_after()
+        return allowed
 
     def guard(self, fn: Callable):
         """Decorator enforcing the limit on a Flask view."""
@@ -60,8 +65,11 @@ class RateLimiter:
 
         @wraps(fn)
         def wrapper(*args, **kwargs):
-            if not self.check():
-                return jsonify(error="Too many requests. Please slow down."), 429
+            allowed, retry_after = self.check_with_retry_after()
+            if not allowed:
+                response = jsonify(error="Too many requests. Please slow down.")
+                response.headers["Retry-After"] = str(retry_after)
+                return response, 429
             return fn(*args, **kwargs)
 
         return wrapper
@@ -109,23 +117,23 @@ def register_global_rate_limits(
         if owner_email and (session.get("user_email") or "").lower() == owner_email:
             return None
         # Per-IP first (short window, fast cutoff against bots)
-        if not ip_limiter.check():
-            return (
-                jsonify(
-                    error="Too many requests from your network. "
-                          "Please wait a few minutes and try again.",
-                    rate_limit="ip",
-                ),
-                429,
+        ip_allowed, ip_retry_after = ip_limiter.check_with_retry_after()
+        if not ip_allowed:
+            response = jsonify(
+                error="Too many requests from your network. "
+                      "Please wait a few minutes and try again.",
+                rate_limit="ip",
             )
+            response.headers["Retry-After"] = str(ip_retry_after)
+            return response, 429
         # Per-user (long window, only meaningful when logged in)
-        if session.get("user_email") and not user_limiter.check():
-            return (
-                jsonify(
-                    error="Automated request protection was triggered. "
-                          "Please wait and try again.",
-                    rate_limit="user",
-                ),
-                429,
+        user_allowed, user_retry_after = user_limiter.check_with_retry_after()
+        if session.get("user_email") and not user_allowed:
+            response = jsonify(
+                error="Automated request protection was triggered. "
+                      "Please wait and try again.",
+                rate_limit="user",
             )
+            response.headers["Retry-After"] = str(user_retry_after)
+            return response, 429
         return None
