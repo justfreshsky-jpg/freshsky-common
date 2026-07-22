@@ -35,6 +35,7 @@ def test_portfolio_skin_is_light_accessible_and_bounded():
     assert "--fs-bg:#f4f7f8" in snippet
     assert "main section" not in snippet
     assert "min-height:44px" in snippet
+    assert "button{min-height:44px}" in snippet
     assert "min-height:48px" in snippet
     assert "prefers-reduced-motion:reduce" in snippet
     assert "futuristic dark" not in snippet
