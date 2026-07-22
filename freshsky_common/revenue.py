@@ -336,10 +336,10 @@ def og_snippet(brand: str, primary_url: str, description: str = '') -> str:
     link unfurls. Uses the hub's default og-image.png so every app gets a
     consistent social preview without needing per-app image assets.
 
-    NOTE: Also appends the portfolio-wide futuristic dark skin CSS so every
-    batch app that renders {{ og_tags|safe }} gets the modernized look
-    without per-app template edits. The skin overrides existing styles via
-    CSS specificity, so individual app stylesheets are preserved as a base."""
+    NOTE: Also appends the portfolio-wide interface foundation so every batch
+    app that renders {{ og_tags|safe }} gets consistent, accessible styling
+    without duplicating it in each repository. App-specific styles remain the
+    base and this layer only normalizes shared surfaces and controls."""
     desc = description or f'Part of the Fresh Sky AI portfolio — AI tools built under the HULEC rule.'
     url = primary_url.rstrip('/')
     return (
@@ -353,65 +353,63 @@ def og_snippet(brand: str, primary_url: str, description: str = '') -> str:
         f'<meta name="twitter:title" content="{brand}">\n'
         f'<meta name="twitter:description" content="{desc}">\n'
         f'<meta name="twitter:image" content="https://freshskyai.com/og-image.png">\n'
-        + _FUTURISTIC_SKIN_CSS
+        + _PORTFOLIO_SKIN_CSS
     )
 
 
-_FUTURISTIC_SKIN_CSS = """<style id="fs-portfolio-skin">
-/* Fresh Sky AI portfolio skin — futuristic dark theme overlay. Injected
-   via freshsky_common.revenue.og_snippet so every batch app picks it up
-   without per-app template edits. Overrides via CSS specificity. */
-:root{--fs-bg:#06091a;--fs-fg:#e2e8f0;--fs-mute:#94a3b8;--fs-card:rgba(255,255,255,0.04);--fs-border:rgba(255,255,255,0.08);--fs-accent:#6366f1;--fs-accent2:#8b5cf6;--fs-accent3:#22d3ee}
-html,body{background:var(--fs-bg)!important;color:var(--fs-fg)!important}
-body{background-image:radial-gradient(at 15% 8%,rgba(99,102,241,0.10) 0%,transparent 45%),radial-gradient(at 85% 30%,rgba(6,182,212,0.08) 0%,transparent 45%),radial-gradient(at 50% 95%,rgba(139,92,246,0.10) 0%,transparent 45%)!important}
-body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");opacity:0.025;pointer-events:none;z-index:9997;mix-blend-mode:overlay}
-/* Nav / brand */
-.nav,.topbar,nav,.fs-nav{background:rgba(6,9,26,0.78)!important;-webkit-backdrop-filter:blur(16px) saturate(180%);backdrop-filter:blur(16px) saturate(180%);border-bottom:1px solid var(--fs-border)!important;color:var(--fs-fg)!important}
-.nav a,nav a,.brand,.fs-nav a{color:var(--fs-fg)!important}
-.nav a.brand,nav a.brand,.brand,.fs-nav .brand{color:#fff!important;font-weight:700}
-/* Hero */
+_PORTFOLIO_SKIN_CSS = """<style id="fs-portfolio-skin">
+/* FreshSky portfolio interface foundation. App styles remain authoritative for
+   product-specific layouts; this layer unifies shared surfaces and controls. */
+:root{--fs-bg:#f4f7f8;--fs-fg:#102a35;--fs-mute:#536b74;--fs-card:#fff;--fs-border:#d8e3e6;--fs-accent:#087f78;--fs-accent-dark:#05645f;--fs-soft:#e8f5f3;--fs-shadow:0 12px 32px rgba(16,42,53,.08)}
+html{color-scheme:light;background:var(--fs-bg)!important}
+body{background:linear-gradient(180deg,#edf7f5 0,#f8faf9 280px,var(--fs-bg) 620px)!important;color:var(--fs-fg)!important;overflow-wrap:anywhere}
+body::before{display:none!important}
+body,button,input,select,textarea{font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+img,svg,video,canvas{max-width:100%}
+.nav,.topbar,nav.fs-nav{background:rgba(255,255,255,.94)!important;border-bottom:1px solid var(--fs-border)!important;color:var(--fs-fg)!important;box-shadow:0 2px 12px rgba(16,42,53,.04)!important}
+.topbar{padding-inline:max(20px,calc((100vw - 1160px)/2))!important}
+.nav a,.topbar a,nav.fs-nav a,.brand,.fs-nav .brand{color:var(--fs-fg)!important}
+.nav a.brand,.topbar a.brand,.brand,.fs-nav .brand{font-weight:750!important;letter-spacing:-.02em}
 header,.hero,.fs-hero{background:transparent!important;color:var(--fs-fg)!important;position:relative}
-.hero h1,header h1,.fs-hero h1{color:#fff!important;background:linear-gradient(135deg,#fff 0%,#c7d2fe 100%);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-.hero p,header p,.fs-hero p,.sub,.hero-desc{color:var(--fs-mute)!important}
+header:not(.topbar){width:min(100% - 40px,1160px);margin-inline:auto!important;text-align:left!important}
+header h1,.hero h1,.fs-hero h1{color:var(--fs-fg)!important;background:none!important;-webkit-text-fill-color:currentColor!important;letter-spacing:-.035em}
+header p,.hero p,.fs-hero p,.sub,.hero-desc{color:var(--fs-mute)!important;max-width:760px}
 .hero-pills,.fs-hero-badges,.hero-badges{margin-top:14px}
-.pill,.fs-hero-pill,.badge-pill,.hero-pill,.badge{background:rgba(255,255,255,0.06)!important;color:var(--fs-fg)!important;border:1px solid var(--fs-border)!important;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
-/* Cards */
-.card,.tool,.feature-card,.step-card,main section,.landing-section{background:var(--fs-card)!important;border:1px solid var(--fs-border)!important;color:var(--fs-fg)!important;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-radius:14px!important}
-.card h1,.card h2,.card h3,.tool h2,.tool h3{color:#fff!important}
-.tool h2,.tool h3,.feature-card h3,.step-card h3,.section-title{color:#fff!important}
-.muted,.hint,.section-subtitle,.note{color:var(--fs-mute)!important}
-/* Inputs */
-input,textarea,select,.input{background:rgba(255,255,255,0.05)!important;color:var(--fs-fg)!important;border:1px solid var(--fs-border)!important}
-input:focus,textarea:focus,select:focus,.input:focus{outline:2px solid var(--fs-accent)!important;border-color:var(--fs-accent)!important;background:rgba(255,255,255,0.07)!important}
-input::placeholder,textarea::placeholder{color:#64748b!important}
-/* Buttons */
-.btn,.btn-primary,button.primary,.landing-cta,button[type=submit]{background:linear-gradient(135deg,var(--fs-accent) 0%,var(--fs-accent2) 100%)!important;color:#fff!important;border:none!important;box-shadow:0 4px 20px rgba(99,102,241,0.3)!important;border-radius:10px!important;font-weight:600!important;transition:transform .15s,box-shadow .15s!important}
-.btn:hover,.btn-primary:hover,button.primary:hover,.landing-cta:hover{transform:translateY(-2px)!important;box-shadow:0 8px 28px rgba(99,102,241,0.5),0 0 32px rgba(139,92,246,0.3)!important}
-.btn:disabled,.btn-primary:disabled,button:disabled{opacity:.5!important;cursor:not-allowed!important;transform:none!important}
-/* Output / result */
-.output,.result,.result-box,pre{background:rgba(255,255,255,0.03)!important;color:var(--fs-fg)!important;border:1px solid var(--fs-border)!important;border-radius:10px!important}
-.output.error,.result-box.error{background:rgba(239,68,68,0.08)!important;border-color:rgba(239,68,68,0.3)!important;color:#fca5a5!important}
-/* Footer */
-footer,.foot,.footer{background:rgba(0,0,0,0.3)!important;border-top:1px solid var(--fs-border)!important;color:var(--fs-mute)!important}
-footer a,.foot a,.footer a{color:var(--fs-fg)!important}
-/* Tables */
-table th{background:rgba(99,102,241,0.15)!important;color:#fff!important}
+.pill,.fs-hero-pill,.badge-pill,.hero-pill,.badge{background:var(--fs-soft)!important;color:var(--fs-accent-dark)!important;border:1px solid #bfe2dd!important}
+.card,.tool,.feature-card,.step-card,.landing-section{background:var(--fs-card)!important;border:1px solid var(--fs-border)!important;color:var(--fs-fg)!important;box-shadow:var(--fs-shadow)!important;border-radius:16px!important}
+.card h1,.card h2,.card h3,.tool h2,.tool h3,.feature-card h3,.step-card h3,.section-title{color:var(--fs-fg)!important}
+.muted,.hint,.section-subtitle,.note,.disclaimer,.cta-footnote{color:var(--fs-mute)!important}
+input,textarea,select,.input{background:#fff!important;color:var(--fs-fg)!important;border:1px solid #b9cbd0!important;border-radius:10px!important;min-height:44px}
+textarea{min-height:112px}
+input:focus,textarea:focus,select:focus,.input:focus{outline:3px solid rgba(8,127,120,.22)!important;outline-offset:1px;border-color:var(--fs-accent)!important;background:#fff!important}
+input::placeholder,textarea::placeholder{color:#6d8188!important;opacity:1}
+.btn,.btn-primary,button.primary,.landing-cta,button[type=submit]{min-height:48px;background:var(--fs-accent)!important;color:#fff!important;border:1px solid var(--fs-accent)!important;box-shadow:0 6px 16px rgba(8,127,120,.18)!important;border-radius:10px!important;font-weight:700!important;transition:background-color .15s,box-shadow .15s,transform .15s!important}
+.btn:hover,.btn-primary:hover,button.primary:hover,.landing-cta:hover,button[type=submit]:hover{background:var(--fs-accent-dark)!important;box-shadow:0 8px 20px rgba(8,127,120,.24)!important;transform:translateY(-1px)}
+.btn:focus-visible,.btn-primary:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid rgba(8,127,120,.3)!important;outline-offset:3px!important}
+.btn:disabled,.btn-primary:disabled,button:disabled{opacity:.55!important;cursor:not-allowed!important;transform:none!important}
+.output,.result,.result-box,pre{background:#f8fbfb!important;color:var(--fs-fg)!important;border:1px solid var(--fs-border)!important;border-radius:10px!important}
+.output.error,.result-box.error{background:#fff1f1!important;border-color:#efb5b5!important;color:#8c2020!important}
+footer,.foot,.footer{background:#eef4f4!important;border-top:1px solid var(--fs-border)!important;color:var(--fs-mute)!important}
+footer a,.foot a,.footer a{color:var(--fs-accent-dark)!important}
+table th{background:var(--fs-soft)!important;color:var(--fs-fg)!important}
 table td{color:var(--fs-fg)!important;border-color:var(--fs-border)!important}
-table tr:hover td{background:rgba(255,255,255,0.04)!important}
-/* Links */
-a{color:#a78bfa}
-a:hover{color:#c4b5fd}
-.disclaimer,.cta-footnote{color:var(--fs-mute)!important}
-/* Agent widget philosophy second-line — sits under the tagline */
-.fs-agent-philosophy{font-size:11px;color:#94a3b8;margin:4px 0 0;line-height:1.45;font-style:italic;letter-spacing:.01em}
-/* Tabs (EduSafeAI-style) */
-.tabs button{background:rgba(255,255,255,0.04)!important;color:var(--fs-fg)!important;border:1px solid var(--fs-border)!important}
-.tabs button.active{background:linear-gradient(135deg,var(--fs-accent),var(--fs-accent2))!important;color:#fff!important;border-color:transparent!important}
-/* Stats strip */
-.landing-stats-strip,.stats-row{background:rgba(255,255,255,0.04)!important;border:1px solid var(--fs-border)!important;border-radius:14px!important}
-.landing-stat-num,.stat-num{color:#fff!important}
-/* Feature tags / category badges */
-.feature-tag,.cat-badge,.tag{background:rgba(99,102,241,0.15)!important;color:#a5b4fc!important;border:1px solid rgba(99,102,241,0.25)!important}
+table tr:hover td{background:#f8fbfb!important}
+a{color:var(--fs-accent-dark)}
+a:hover{color:#034c48}
+.fs-agent-philosophy{font-size:12px;color:var(--fs-mute);margin:4px 0 0;line-height:1.5;font-style:italic}
+.tabs button{min-height:44px;background:#fff!important;color:var(--fs-fg)!important;border:1px solid var(--fs-border)!important}
+.tabs button.active{background:var(--fs-accent)!important;color:#fff!important;border-color:var(--fs-accent)!important}
+.landing-stats-strip,.stats-row{background:#fff!important;border:1px solid var(--fs-border)!important;border-radius:14px!important}
+.landing-stat-num,.stat-num{color:var(--fs-fg)!important}
+.feature-tag,.cat-badge,.tag{background:var(--fs-soft)!important;color:var(--fs-accent-dark)!important;border:1px solid #bfe2dd!important}
+@media (max-width:640px){
+  .topbar{padding-inline:16px!important;gap:10px;flex-wrap:wrap}
+  .topbar a,.topbar label,.nav a,.fs-nav a{min-height:44px;display:inline-flex;align-items:center}
+  header:not(.topbar){width:min(100% - 32px,1160px)}
+  .card,.tool,.feature-card,.step-card,.landing-section{border-radius:13px!important}
+  button,.btn,.btn-primary,.landing-cta{max-width:100%}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}
 </style>
 """
 
@@ -495,7 +493,7 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
             'app_brand': brand,
         }
 
-    # Inject the futuristic dark skin into every HTML response, regardless
+    # Inject the shared interface foundation into every HTML response, regardless
     # of whether the template renders {{ og_tags|safe }}. Idempotent: skips
     # if the skin marker is already in the body (e.g., when og_tags is rendered).
     @app.after_request
@@ -515,7 +513,7 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
         if ad_snippet and 'pagead2.googlesyndication.com/pagead/js/adsbygoogle.js' not in body:
             head_insert += ad_snippet
         if 'fs-portfolio-skin' not in body:
-            head_insert += _FUTURISTIC_SKIN_CSS
+            head_insert += _PORTFOLIO_SKIN_CSS
         if not head_insert:
             return response
         new = body.replace('</head>', head_insert + '</head>', 1)
