@@ -1,15 +1,15 @@
 {
   "_comment": "Reviewed model registry. The LLM chain reads these defaults when the corresponding *_MODEL environment variable is not set. The nightly workflow uses only catalogs that can establish safe eligibility, retains OpenRouter's rotating free router, and opens a proposal for operator review when a strictly newer model qualifies. No auto-merge. Hardcoded names in llm.py are emergency fallbacks for a missing or invalid packaged registry.",
 
-  "updated_at": "2026-06-14",
+  "updated_at": "2026-07-22",
 
   "providers": {
     "groq": {
       "env_var": "GROQ_MODEL",
-      "current": "llama-3.3-70b-versatile",
+      "current": "openai/gpt-oss-120b",
       "catalog_url": "https://api.groq.com/openai/v1/models",
-      "prefer_size": "70b",
-      "notes": "Llama 3.3 70B is current strong/cheap. When Llama 4 lands on Groq free tier, propose upgrade."
+      "prefer_size": "120b",
+      "notes": "GPT-OSS 120B replaces Llama 3.3 70B before Groq's August 16, 2026 free/developer shutdown."
     },
     "cerebras": {
       "env_var": "CEREBRAS_MODEL",

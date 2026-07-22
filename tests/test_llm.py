@@ -16,6 +16,73 @@ class FakeResponse:
         return self._payload
 
 
+class FakeCredentials:
+    token = "vertex-token"
+
+    def refresh(self, request):
+        return None
+
+
+def test_vertex_uses_iam_and_gemini_flash_lite(monkeypatch):
+    calls = []
+
+    def fake_post(url, headers=None, json=None, timeout=None):
+        calls.append((url, headers, json))
+        return FakeResponse(
+            {"candidates": [{"content": {"parts": [{"text": "answer"}]}}]}
+        )
+
+    monkeypatch.setenv("VERTEX_AI_ENABLED", "true")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "freshsky-project")
+    monkeypatch.delenv("VERTEX_AI_MODEL", raising=False)
+    monkeypatch.setattr(llm.google.auth, "default", lambda scopes: (FakeCredentials(), None))
+    monkeypatch.setattr(llm.requests, "post", fake_post)
+
+    assert llm._via_vertex("system", "user") == "answer"
+    assert calls[0][0].endswith(
+        "/projects/freshsky-project/locations/us-central1/publishers/google/"
+        "models/gemini-2.5-flash-lite:generateContent"
+    )
+    assert calls[0][1]["Authorization"] == "Bearer vertex-token"
+    assert calls[0][2]["systemInstruction"]["parts"][0]["text"] == "system"
+    assert calls[0][2]["generationConfig"]["maxOutputTokens"] == 2000
+
+
+def test_vertex_is_disabled_without_explicit_flag(monkeypatch):
+    monkeypatch.delenv("VERTEX_AI_ENABLED", raising=False)
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "freshsky-project")
+    monkeypatch.setattr(
+        llm.google.auth,
+        "default",
+        lambda **kwargs: (_ for _ in ()).throw(
+            AssertionError("disabled Vertex must not request credentials")
+        ),
+    )
+
+    assert llm._via_vertex("system", "user") is None
+    assert "vertex" not in llm.configured_providers("us_public")
+
+
+def test_vertex_failure_falls_back_without_prompt_logging(monkeypatch):
+    monkeypatch.setattr(llm, "_PROVIDER_METRICS", Metrics())
+    monkeypatch.setenv("VERTEX_AI_ENABLED", "true")
+    monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "freshsky-project")
+    monkeypatch.setattr(llm.google.auth, "default", lambda scopes: (FakeCredentials(), None))
+    monkeypatch.setattr(
+        llm.requests,
+        "post",
+        lambda *args, **kwargs: FakeResponse({"error": "unavailable"}, status_code=503),
+    )
+
+    assert llm._via_vertex("system", "private prompt") is None
+    assert llm.provider_metrics_snapshot()["providers"]["vertex"] == {
+        "attempts": 1,
+        "failures": 1,
+        "provider_unavailable": 1,
+        "http_503": 1,
+    }
+
+
 def test_openrouter_defaults_to_free_denies_collection_and_requires_zdr(monkeypatch):
     payloads = []
 
@@ -113,6 +180,7 @@ def test_removed_noncommercial_providers_are_not_configurable(monkeypatch):
 
 def test_default_provider_order_prefers_ollama_before_aggregators():
     assert [provider.__name__ for provider in llm.DEFAULT_PROVIDERS] == [
+        "_via_vertex",
         "_via_groq",
         "_via_cerebras",
         "_via_mistral",
@@ -128,6 +196,7 @@ def test_education_profile_uses_only_reviewed_direct_providers(monkeypatch):
     monkeypatch.delenv("GROQ_ZDR_CONFIRMED", raising=False)
     chain = llm.LLMChain(privacy_profile="education_deidentified")
     assert [getattr(provider, "_provider_name", provider.__name__) for provider in chain.providers] == [
+        "_via_vertex",
         "_via_cloudflare",
         "_via_ollama",
         "_via_cerebras",

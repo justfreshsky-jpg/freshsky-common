@@ -10,9 +10,12 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from importlib import resources
 from typing import Callable, List, Optional
 
+import google.auth
+from google.auth.transport.requests import Request as GoogleAuthRequest
 import requests
 
 from .metrics import Metrics
@@ -67,6 +70,9 @@ def _load_model_defaults() -> dict[str, str]:
 
 _MODEL_DEFAULTS = _load_model_defaults()
 
+_VERTEX_RESOURCE_RE = re.compile(r"^[a-z][a-z0-9-]{0,62}$")
+_VERTEX_MODEL_RE = re.compile(r"^[A-Za-z0-9._-]+$")
+
 
 def _env_enabled(name: str) -> bool:
     return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
@@ -100,9 +106,11 @@ def configured_providers(privacy_profile: Optional[str] = None) -> list[str]:
         for provider, requirements in _PROVIDER_ENV_REQUIREMENTS.items()
         if all(any(os.environ.get(name) for name in aliases) for aliases in requirements)
     ]
+    if _vertex_configured():
+        configured.insert(0, "vertex")
     profile = _privacy_profile(privacy_profile)
     if profile in {EDUCATION_PRIVACY_PROFILE, US_PUBLIC_PRIVACY_PROFILE}:
-        allowed = {"cloudflare", "ollama", "cerebras", "sambanova"}
+        allowed = {"vertex", "cloudflare", "ollama", "cerebras", "sambanova"}
         if _env_enabled("GROQ_ZDR_CONFIRMED"):
             allowed.add("groq")
         return [provider for provider in configured if provider in allowed]
@@ -214,6 +222,86 @@ def _openai_content(provider: str, raw: Optional[str]) -> Optional[str]:
     return text
 
 
+def _vertex_configured() -> bool:
+    project = os.environ.get("GOOGLE_CLOUD_PROJECT", "").strip()
+    location = os.environ.get("VERTEX_AI_LOCATION", "us-central1").strip()
+    model = os.environ.get("VERTEX_AI_MODEL", "gemini-2.5-flash-lite").strip()
+    return bool(
+        _env_enabled("VERTEX_AI_ENABLED")
+        and _VERTEX_RESOURCE_RE.fullmatch(project)
+        and _VERTEX_RESOURCE_RE.fullmatch(location)
+        and _VERTEX_MODEL_RE.fullmatch(model)
+    )
+
+
+def _vertex_content(raw: Optional[str]) -> Optional[str]:
+    if not raw:
+        return None
+    try:
+        parts = json.loads(raw)["candidates"][0]["content"]["parts"]
+        text = "".join(
+            str(part.get("text") or "")
+            for part in parts
+            if isinstance(part, dict)
+        ).strip()
+    except (KeyError, TypeError, ValueError, IndexError):
+        _record("vertex", "failures")
+        _record("vertex", "invalid_response")
+        logger.warning(
+            "llm_provider_failure provider=vertex category=invalid_response"
+        )
+        return None
+    if not text:
+        _record("vertex", "failures")
+        _record("vertex", "empty_response")
+        return None
+    _record("vertex", "successes")
+    return text
+
+
+def _via_vertex(system: str, user: str) -> Optional[str]:
+    """Use IAM-authenticated Vertex AI when explicitly enabled."""
+    if not _vertex_configured():
+        return None
+    project = os.environ["GOOGLE_CLOUD_PROJECT"].strip()
+    location = os.environ.get("VERTEX_AI_LOCATION", "us-central1").strip()
+    model = os.environ.get("VERTEX_AI_MODEL", "gemini-2.5-flash-lite").strip()
+    try:
+        credentials, _ = google.auth.default(
+            scopes=["https://www.googleapis.com/auth/cloud-platform"]
+        )
+        credentials.refresh(GoogleAuthRequest())
+    except Exception as exc:
+        _record("vertex", "attempts")
+        _record("vertex", "failures")
+        _record("vertex", "authentication")
+        logger.warning(
+            "llm_provider_failure provider=vertex category=authentication exception=%s",
+            type(exc).__name__,
+        )
+        return None
+    raw = _http_post(
+        "vertex",
+        (
+            f"https://{location}-aiplatform.googleapis.com/v1/projects/{project}"
+            f"/locations/{location}/publishers/google/models/{model}:generateContent"
+        ),
+        {
+            "Authorization": f"Bearer {credentials.token}",
+            "Content-Type": "application/json",
+        },
+        {
+            "systemInstruction": {"parts": [{"text": system}]},
+            "contents": [{"role": "user", "parts": [{"text": user}]}],
+            "generationConfig": {
+                "temperature": 0.4,
+                "maxOutputTokens": 2000,
+            },
+        },
+    )
+    return _vertex_content(raw)
+
+
 def _via_groq(system: str, user: str) -> Optional[str]:
     key = _first_env("GROQ_API_KEY", "GROQ_KEY")
     if not key:
@@ -223,7 +311,7 @@ def _via_groq(system: str, user: str) -> Optional[str]:
         "https://api.groq.com/openai/v1/chat/completions",
         {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
         {
-            "model": _model_name("GROQ_MODEL", "groq", "llama-3.3-70b-versatile"),
+            "model": _model_name("GROQ_MODEL", "groq", "openai/gpt-oss-120b"),
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
             "temperature": 0.4,
             "max_tokens": 2000,
@@ -412,6 +500,7 @@ def _via_huggingface(system: str, user: str) -> Optional[str]:
 
 
 DEFAULT_PROVIDERS: List[Callable[[str, str], Optional[str]]] = [
+    _via_vertex,
     _via_groq,
     _via_cerebras,
     _via_mistral,
@@ -433,6 +522,7 @@ _via_groq_with_confirmed_zdr._provider_name = "groq"  # type: ignore[attr-define
 
 
 US_RESTRICTED_PROVIDERS: List[Callable[[str, str], Optional[str]]] = [
+    _via_vertex,
     _via_cloudflare,
     _via_ollama,
     _via_cerebras,
