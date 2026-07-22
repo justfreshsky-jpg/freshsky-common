@@ -62,7 +62,7 @@ def register_seo_routes(app: Flask, slug: str, brand: str, primary_url: str) -> 
         return Response(
             f'/* {brand} */\n'
             'Built by Fresh Sky LLC.\n'
-            'Free specialized AI tools for public use. Optional donations support the portfolio.\n'
+            'Free specialized public tools. Optional donations support the portfolio.\n'
             f'App: {slug}\n',
             mimetype='text/plain',
         )
