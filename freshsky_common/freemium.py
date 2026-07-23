@@ -464,7 +464,7 @@ def register_freemium(
         if 'text/html' not in response.headers.get('Content-Type', ''):
             return response
         body = response.get_data(as_text=True)
-        if '/freemium.js' not in body:
+        if _access_bundle_path in body:
             return response
         for quote in ('"', "'"):
             body = body.replace(
@@ -474,6 +474,12 @@ def register_freemium(
             body = body.replace(
                 f'src={quote}/freemium.js?v=20260723{quote}',
                 f'src={quote}{_access_bundle_path}{quote}',
+            )
+        if _access_bundle_path not in body and '</body>' in body:
+            body = body.replace(
+                '</body>',
+                f'<script src="{_access_bundle_path}"></script></body>',
+                1,
             )
         response.set_data(body)
         return response

@@ -131,6 +131,16 @@ def test_versioned_access_bundle_replaces_stable_script_path():
     assert compatibility.headers["Cache-Control"] == "no-store, max-age=0"
 
 
+def test_versioned_access_bundle_is_injected_when_template_has_no_script():
+    app = make_app()
+    app.view_functions["index"] = lambda: "<html><body><main>Tool</main></body></html>"
+
+    page = app.test_client().get("/")
+    body = page.get_data(as_text=True)
+    assert body.count('src="/freshsky-access-v051.js"') == 1
+    assert body.index("<main>") < body.index('src="/freshsky-access-v051.js"')
+
+
 def test_stripe_secret_enables_billing_without_retired_price_ids(monkeypatch):
     created = {}
 
