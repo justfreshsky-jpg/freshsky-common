@@ -435,15 +435,48 @@ def register_freemium(
     # their own static/ directory.
     import importlib.resources as _ir
 
-    @app.route('/freemium.js')
-    def freemium_js():
+    _access_bundle_path = '/freshsky-access-v051.js'
+
+    def _freemium_js_response():
         try:
             content = (_ir.files('freshsky_common.static') / 'freemium.js').read_text(encoding='utf-8')
         except Exception:
             content = ''
         resp = Response(content, mimetype='application/javascript; charset=utf-8')
-        resp.headers['Cache-Control'] = 'public, max-age=3600'
+        resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
         return resp
+
+    app.add_url_rule(_access_bundle_path, 'freshsky_access_bundle_v051', _freemium_js_response)
+
+    @app.route('/freemium.js')
+    def freemium_js():
+        # Compatibility route for older templates. Do not cache this stable
+        # path across deployments; HTML is rewritten to the versioned bundle.
+        resp = _freemium_js_response()
+        resp.headers['Cache-Control'] = 'no-store, max-age=0'
+        return resp
+
+    @app.after_request
+    def version_freemium_bundle(response):
+        """Move HTML off the historically cached stable JavaScript path."""
+        if response.status_code != 200:
+            return response
+        if 'text/html' not in response.headers.get('Content-Type', ''):
+            return response
+        body = response.get_data(as_text=True)
+        if '/freemium.js' not in body:
+            return response
+        for quote in ('"', "'"):
+            body = body.replace(
+                f'src={quote}/freemium.js{quote}',
+                f'src={quote}{_access_bundle_path}{quote}',
+            )
+            body = body.replace(
+                f'src={quote}/freemium.js?v=20260723{quote}',
+                f'src={quote}{_access_bundle_path}{quote}',
+            )
+        response.set_data(body)
+        return response
 
     # ─── USER STATUS API ─────────────────────────────────────────
     @app.route('/api/user-status')

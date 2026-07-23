@@ -109,6 +109,28 @@ def test_user_status_reports_full_free_access():
     assert "is_pro" not in payload
 
 
+def test_versioned_access_bundle_replaces_stable_script_path():
+    app = make_app()
+    app.view_functions["index"] = lambda: (
+        '<html><body><script src="/freemium.js"></script></body></html>'
+    )
+
+    client = app.test_client()
+    page = client.get("/")
+    assert page.status_code == 200
+    assert 'src="/freshsky-access-v051.js"' in page.get_data(as_text=True)
+    assert 'src="/freemium.js"' not in page.get_data(as_text=True)
+
+    bundle = client.get("/freshsky-access-v051.js")
+    assert bundle.status_code == 200
+    assert "installVisualSystem" in bundle.get_data(as_text=True)
+    assert bundle.headers["Cache-Control"] == "public, max-age=31536000, immutable"
+
+    compatibility = client.get("/freemium.js")
+    assert compatibility.status_code == 200
+    assert compatibility.headers["Cache-Control"] == "no-store, max-age=0"
+
+
 def test_stripe_secret_enables_billing_without_retired_price_ids(monkeypatch):
     created = {}
 
