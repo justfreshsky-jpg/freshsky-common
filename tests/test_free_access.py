@@ -118,10 +118,10 @@ def test_versioned_access_bundle_replaces_stable_script_path():
     client = app.test_client()
     page = client.get("/")
     assert page.status_code == 200
-    assert 'src="/freshsky-access-v051.js"' in page.get_data(as_text=True)
+    assert 'src="/freshsky-access-v052.js"' in page.get_data(as_text=True)
     assert 'src="/freemium.js"' not in page.get_data(as_text=True)
 
-    bundle = client.get("/freshsky-access-v051.js")
+    bundle = client.get("/freshsky-access-v052.js")
     assert bundle.status_code == 200
     assert "installVisualSystem" in bundle.get_data(as_text=True)
     assert bundle.headers["Cache-Control"] == "public, max-age=31536000, immutable"
@@ -137,8 +137,30 @@ def test_versioned_access_bundle_is_injected_when_template_has_no_script():
 
     page = app.test_client().get("/")
     body = page.get_data(as_text=True)
-    assert body.count('src="/freshsky-access-v051.js"') == 1
-    assert body.index("<main>") < body.index('src="/freshsky-access-v051.js"')
+    assert body.count('src="/freshsky-access-v052.js"') == 1
+    assert body.index("<main>") < body.index('src="/freshsky-access-v052.js"')
+
+
+def test_optional_global_post_gate_counts_three_previews():
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        subscriptions_enabled=True,
+        subscription_tier="advanced",
+        subscription_price_id="price_advanced_monthly",
+        subscription_amount_cents=2999,
+        free_request_limit=3,
+        gate_all_post=True,
+    )
+
+    @app.post("/api/work")
+    def work():
+        return {"ok": True}
+
+    client = app.test_client()
+    assert [client.post("/api/work").status_code for _ in range(3)] == [200, 200, 200]
+    blocked = client.post("/api/work")
+    assert blocked.status_code == 402
+    assert blocked.get_json()["price_cents"] == 2999
 
 
 def test_stripe_secret_enables_billing_without_retired_price_ids(monkeypatch):

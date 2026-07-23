@@ -214,6 +214,7 @@ a.primary:hover {
 
 .fs-access-brand {
   display: inline-flex;
+  min-height: 44px;
   align-items: center;
   gap: 8px;
   color: #f8fbff;
@@ -252,7 +253,7 @@ a.primary:hover {
 
 .fs-access-cta {
   display: inline-flex;
-  min-height: 34px;
+  min-height: 44px;
   padding: 7px 13px;
   align-items: center;
   border: 1px solid rgba(255, 255, 255, 0.18);
@@ -266,6 +267,10 @@ a.primary:hover {
 }
 
 .fs-access-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  padding-inline: 4px;
   color: #cbd8ee;
   text-decoration: none;
   font-size: 12.5px;
