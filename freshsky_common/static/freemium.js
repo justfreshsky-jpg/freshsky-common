@@ -46,7 +46,7 @@
   }
 
   function communityLink() {
-    return '<a href="https://www.freshskyai.com/#hulec" target="_blank" rel="noopener" ' +
+    return '<a href="https://www.freshskyai.com/#why" target="_blank" rel="noopener" ' +
       'class="fs-access-link">HULEC standard</a>';
   }
 
@@ -71,12 +71,17 @@
       document.body.style.paddingTop = '54px';
     }
 
+    var host = (window.location && window.location.host || '').toLowerCase();
+    var mainCatalog = host === 'www.freshskyai.com' || host === 'freshskyai.com';
     var access = STATE.subscription_enabled
       ? (STATE.full_access
           ? '<span class="fs-access-state" data-active="true">Plan active</span>'
           : '<span class="fs-access-state">' +
               String(STATE.daily_limit || 3) + ' free AI runs</span>')
-      : '<span class="fs-access-state" data-active="true">Free community access</span>';
+      : (mainCatalog
+          ? '<span class="fs-access-state" data-active="true">Catalog · 3 free AI previews</span>'
+          : '<span class="fs-access-state" data-active="true">' +
+              (STATE.community_mode ? 'Free civic access' : 'Free public access') + '</span>');
     var action = STATE.subscription_enabled ? planLink() : communityLink();
     var user = STATE.logged_in
       ? '<span class="fs-access-user">' +
@@ -149,7 +154,7 @@
           'Transparent pricing, no hidden fees, no sale of prompt data, and no religious-certification claim. ' +
           (STATE.subscription_enabled
             ? '<a href="/subscribe" data-fs-event="subscription_clicked">View this app&rsquo;s monthly plan</a>'
-            : '<a href="https://www.freshskyai.com/#hulec" target="_blank" rel="noopener">Read the HULEC standard</a>') +
+            : '<a href="https://www.freshskyai.com/#why" target="_blank" rel="noopener">Read the HULEC standard</a>') +
         '</div>';
       document.body.appendChild(mark);
     } catch (e) {}
