@@ -170,6 +170,15 @@ def test_optional_public_routes_are_disabled_by_default():
     assert client.get("/metrics/providers").status_code == 404
 
 
+def test_shared_visual_system_is_local_and_cacheable():
+    response = make_app().test_client().get("/freshsky.css")
+
+    assert response.status_code == 200
+    assert response.mimetype == "text/css"
+    assert "Fresh Sky 2026 shared visual system" in response.get_data(as_text=True)
+    assert response.headers["Cache-Control"] == "public, max-age=3600"
+
+
 def test_google_login_uses_fixed_callback_and_nonce():
     app = make_app(
         google_client_id="client.apps.googleusercontent.com",

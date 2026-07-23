@@ -3,11 +3,11 @@ HULEC scorer — periodic retirement signal across the portfolio.
 
 HULEC is the operator's gate for whether an app should keep existing:
 
-  H — Helpful (does it actually save a person time?)
+  H — Human-centered (is it understandable, respectful, and genuinely useful?)
   U — Unique  (is there a free .gov tool that already does this?)
-  L — Lean    (is the surface small / one job well done?)
+  L — Legal   (does it stay within its role and point to qualified help?)
   E — Efficient (is it fast — Cloud Run p95 within target?)
-  C — Cheap   (does it stay on free-tier providers, no paid bill?)
+  C — Cheap   (is the user price predictable and the delivery cost bounded?)
 
 This module operationalizes U / E / C as automatable checks. H + L stay
 operator-judged (they require reading the product, not metrics).
@@ -86,6 +86,9 @@ def install_hulec(app: Flask, *, slug: str) -> None:
     Idempotent: a second call no-ops because Flask raises on duplicate
     route registration; we catch that.
     """
+    from .brand import install_brand_assets
+
+    install_brand_assets(app)
     canonical = _CANONICALS.get(slug, {})
 
     @app.before_request

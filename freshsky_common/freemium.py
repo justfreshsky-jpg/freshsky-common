@@ -83,6 +83,9 @@ def register_freemium(
             if gate is not None:
                 return gate
     """
+    from .brand import install_brand_assets
+
+    install_brand_assets(app)
     google_client_id = google_client_id or os.environ.get('GOOGLE_CLIENT_ID', '')
     google_client_secret = google_client_secret or os.environ.get('GOOGLE_CLIENT_SECRET', '')
     stripe_secret_key = stripe_secret_key or os.environ.get('STRIPE_SECRET_KEY', '')
