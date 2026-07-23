@@ -32,7 +32,9 @@ def test_affiliate_compatibility_endpoint_is_empty():
 
     assert response.status_code == 200
     assert response.get_json() == {"disclosure": "", "partners": []}
-    assert "Optional donations support the portfolio" in app.test_client().get("/humans.txt").text
+    humans = app.test_client().get("/humans.txt").text
+    assert "three free AI previews" in humans
+    assert "civic volunteer tools remain free" in humans
 
 
 def test_portfolio_skin_is_future_ready_accessible_and_bounded():

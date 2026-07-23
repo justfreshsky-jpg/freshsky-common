@@ -12,6 +12,8 @@ from typing import Optional
 
 from flask import Flask, Response, jsonify
 
+from .brand import install_brand_assets
+
 # ─── CATEGORIES ───────────────────────────────────────────
 # Each app declares its category at install time. Used by cross-promo,
 # FAQ schema, and schema.org typing.
@@ -62,7 +64,8 @@ def register_seo_routes(app: Flask, slug: str, brand: str, primary_url: str) -> 
         return Response(
             f'/* {brand} */\n'
             'Built by Fresh Sky LLC.\n'
-            'Free specialized public tools. Optional donations support the portfolio.\n'
+            'Focused guidance with three free AI previews and predictable monthly plans.\n'
+            'Safety information, official-source links, and civic volunteer tools remain free.\n'
             f'App: {slug}\n',
             mimetype='text/plain',
         )
@@ -102,7 +105,7 @@ def ga4_snippet(measurement_id: Optional[str] = None) -> str:
 
 
 def adsense_snippet(category: str = '', client_id: Optional[str] = None) -> str:
-    """Return no advertising markup; the portfolio is donation-supported."""
+    """Return no advertising markup; product access is never ad-dependent."""
     del category, client_id
     return ''
 
@@ -165,7 +168,7 @@ _FAQ_BY_CATEGORY = {
         ('Does this work in my state?',
          'Yes. Every legal tool is state-aware: the AI is told which state you are in (or works from the federal default) and tailors its guidance to that state’s statutes, court rules, and procedural quirks.'),
         ('How much does this cost?',
-         'Full access is free. Optional donations help cover infrastructure but do not purchase access or priority.'),
+         'You can try three AI-generated results free. Continued AI use requires the monthly plan shown in the tool: Focus $9.99, Plus $19.99, or Advanced $29.99. Safety information and official-source links remain free.'),
     ],
     'benefits': [
         ('Is this affiliated with the government?',
@@ -185,7 +188,7 @@ _FAQ_BY_CATEGORY = {
         ('How current is the information?',
          'The AI is grounded in publicly available federal and state information. For time-sensitive items (deadlines, election dates), verify with the relevant agency before acting.'),
         ('Is this free?',
-         'Full access is free across Fresh Sky AI tools. Optional donations help cover infrastructure.'),
+         'Yes. Fresh Sky AI civic volunteer tools remain free, with no contracts or upsell.'),
     ],
     'healthcare': [
         ('Is this medical advice?',
@@ -195,7 +198,7 @@ _FAQ_BY_CATEGORY = {
         ('Does this work with my insurance?',
          'The AI uses general knowledge of US insurance frameworks (Medicare, Medicaid, ACA, employer plans) to explain coverage in plain language. Always verify specific coverage decisions with your plan.'),
         ('Is this free to use?',
-         'Full access is free. Optional donations help cover infrastructure.'),
+         'You can try three AI-generated results free. Continued AI use requires the monthly plan shown in the tool: Focus $9.99, Plus $19.99, or Advanced $29.99. Safety information and official-source links remain free.'),
     ],
     'education': [
         ('Is this approved by my school district?',
@@ -205,7 +208,7 @@ _FAQ_BY_CATEGORY = {
         ('Does this work for IEP, 504, or ELL situations?',
          'Yes. The tools are designed around K-12 special education and English-learner contexts, with multilingual support so non-English-speaking parents can fully participate.'),
         ('Is this free for teachers and parents?',
-         'Full access is free for teachers, parents, and other users. Optional donations help cover infrastructure.'),
+         'Teachers, parents, and other users can try three AI-generated results free. Continued AI use requires the monthly plan shown in the tool: Focus $9.99, Plus $19.99, or Advanced $29.99. Safety information and official-source links remain free.'),
     ],
     'newcomer': [
         ('Will this affect my immigration status?',
@@ -225,7 +228,7 @@ _FAQ_BY_CATEGORY = {
         ('Does it cover my state and city?',
          'Yes. Housing rules are state and city-specific, and the tool is designed to ask which state you’re in and tailor guidance accordingly.'),
         ('Is it free?',
-         'Full access is free. Optional donations help cover infrastructure.'),
+         'You can try three AI-generated results free. Continued AI use requires the monthly plan shown in the tool: Focus $9.99, Plus $19.99, or Advanced $29.99. Safety information and official-source links remain free.'),
     ],
     'business': [
         ('Is this tax or financial advice?',
@@ -235,7 +238,7 @@ _FAQ_BY_CATEGORY = {
         ('Is my information stored?',
          'No personal information is stored.'),
         ('Free or paid?',
-         'Full access is free. Optional donations help cover infrastructure but do not purchase access or priority.'),
+         'You can try three AI-generated results free. Continued AI use requires the monthly plan shown in the tool: Focus $9.99, Plus $19.99, or Advanced $29.99. Safety information and official-source links remain free.'),
     ],
     'financial': [
         ('Is this financial advice?',
@@ -245,7 +248,7 @@ _FAQ_BY_CATEGORY = {
         ('Does it cover federal and state programs?',
          'Yes. The tool covers federal frameworks plus major state-level variations where they materially differ.'),
         ('How much does it cost?',
-         'Full access is free. AI providers or security safeguards may still temporarily slow automated or abusive traffic.'),
+         'You can try three AI-generated results free. Continued AI use requires the monthly plan shown in the tool: Focus $9.99, Plus $19.99, or Advanced $29.99. Safety information and official-source links remain free.'),
     ],
 }
 
@@ -336,6 +339,7 @@ def og_snippet(brand: str, primary_url: str, description: str = '') -> str:
         f'<meta name="twitter:description" content="{desc}">\n'
         f'<meta name="twitter:image" content="https://freshskyai.com/og-image.png">\n'
         + _PORTFOLIO_SKIN_CSS
+        + '<link rel="stylesheet" href="/freshsky.css">\n'
     )
 
 
@@ -486,6 +490,8 @@ def install_visuals(app: Flask, *, ad_snippet: str = '') -> None:
     Foundation and civic services can use this when they already own their SEO,
     privacy, terms, and sitemap endpoints.
     """
+    install_brand_assets(app)
+
     @app.after_request
     def _inject_skin(response):
         ct = (response.content_type or '').lower()
@@ -504,6 +510,8 @@ def install_visuals(app: Flask, *, ad_snippet: str = '') -> None:
             head_insert += ad_snippet
         if 'fs-portfolio-skin' not in body:
             head_insert += _PORTFOLIO_SKIN_CSS
+        if 'href="/freshsky.css"' not in body:
+            head_insert += '<link rel="stylesheet" href="/freshsky.css">'
         if not head_insert:
             return response
         new = body.replace('</head>', head_insert + '</head>', 1)
