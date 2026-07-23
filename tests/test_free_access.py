@@ -26,7 +26,76 @@ def test_legacy_subscribe_routes_redirect_to_donate():
     assert monthly.status_code == 302
     assert monthly.location == "https://www.freshskyai.com/donate"
     assert yearly.status_code == 302
-    assert yearly.location == "https://www.freshskyai.com/donate"
+    assert yearly.location == "/subscribe"
+
+
+def test_monthly_subscription_checkout_is_opt_in_and_server_priced(monkeypatch):
+    created = {}
+
+    def create_checkout(**kwargs):
+        created.update(kwargs)
+        return SimpleNamespace(url="https://checkout.stripe.test/monthly")
+
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        checkout=SimpleNamespace(Session=SimpleNamespace(create=create_checkout)),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        primary_url="https://foia.example",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+        free_request_limit=3,
+    )
+
+    response = app.test_client().get("/subscribe")
+
+    assert response.status_code == 303
+    assert response.location == "https://checkout.stripe.test/monthly"
+    assert created["mode"] == "subscription"
+    assert created["line_items"] == [
+        {"price": "price_focus_monthly", "quantity": 1}
+    ]
+    assert created["allow_promotion_codes"] is True
+    assert created["metadata"] == {"app_host": "foia.example", "tier": "focus"}
+
+
+def test_verified_checkout_creates_email_session(monkeypatch):
+    checkout = SimpleNamespace(
+        status="complete",
+        mode="subscription",
+        subscription="sub_123",
+        metadata={"app_host": "foia.example", "tier": "focus"},
+        customer_details=SimpleNamespace(email="Person@Example.com"),
+    )
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        checkout=SimpleNamespace(
+            Session=SimpleNamespace(retrieve=lambda _session_id: checkout)
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        primary_url="https://foia.example",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+        free_request_limit=3,
+    )
+    client = app.test_client()
+
+    response = client.get("/subscription/success?session_id=cs_test_123")
+
+    assert response.status_code == 303
+    assert response.location == "https://foia.example/?checkout=success"
+    with client.session_transaction() as user_session:
+        assert user_session["user_email"] == "person@example.com"
+        assert user_session["subscription_tier"] == "focus"
 
 
 def test_user_status_reports_full_free_access():

@@ -1,12 +1,12 @@
-"""Drop-in free-access and authentication helpers for Fresh Sky AI apps.
+"""Drop-in access, authentication, and subscription helpers for Fresh Sky apps.
 
 Single call to ``register_freemium(app, ...)`` adds:
 
 * ``/auth/google`` + ``/auth/google/callback`` — OAuth login with optional
   ``?next=`` round-trip.
 * ``/logout`` — clears session.
-* ``/subscribe`` + ``/subscribe/yearly`` — redirect legacy upgrade links to
-  the optional donation page.
+* ``/subscribe`` — optional monthly Stripe Checkout (disabled by default).
+* ``/subscribe/yearly`` — intentionally redirects to monthly pricing.
 * ``/billing`` — Stripe Customer Billing Portal for recurring supporters and
   historical subscribers.
 * ``/api/user-status`` — JSON endpoint the frontend hits to render the
@@ -32,14 +32,16 @@ Usage in app.py::
             return gate
         ...
 
-The gate is a no-op for every session. Provider safety controls and platform
-cost controls are enforced separately from user access.
+The default remains unrestricted access. A service must explicitly provide a
+monthly Stripe Price ID *and* enable subscriptions before the gate can charge.
+Provider safety controls and platform cost controls remain separate.
 """
 from __future__ import annotations
 
 import logging
 import os
 import secrets
+import time
 from typing import Callable, Optional
 from urllib.parse import urlencode, urlparse
 
@@ -62,6 +64,11 @@ def register_freemium(
     community_mode: bool = False,
     enable_email_capture: bool = False,
     expose_provider_metrics: bool = False,
+    subscriptions_enabled: bool = False,
+    subscription_tier: str = '',
+    subscription_price_id: str = '',
+    subscription_amount_cents: int = 0,
+    free_request_limit: Optional[int] = None,
 ) -> Callable[[], Optional[Response]]:
     """Wire free-access routes onto ``app`` and return the gate function.
 
@@ -76,10 +83,43 @@ def register_freemium(
             if gate is not None:
                 return gate
     """
+    google_client_id = google_client_id or os.environ.get('GOOGLE_CLIENT_ID', '')
+    google_client_secret = google_client_secret or os.environ.get('GOOGLE_CLIENT_SECRET', '')
+    stripe_secret_key = stripe_secret_key or os.environ.get('STRIPE_SECRET_KEY', '')
+    stripe_webhook_secret = (
+        stripe_webhook_secret or os.environ.get('STRIPE_WEBHOOK_SECRET', '')
+    )
     google_auth_enabled = bool(google_client_id and google_client_secret)
-    # Donation checkout creates prices dynamically, so the customer portal
-    # remains available even when retired Pro price IDs are not configured.
     stripe_enabled = bool(stripe_secret_key)
+    env_enabled = os.environ.get('FRESHSKY_SUBSCRIPTIONS_ENABLED', '').lower()
+    subscriptions_enabled = subscriptions_enabled or env_enabled in {'1', 'true', 'yes'}
+    subscription_tier = (
+        subscription_tier or os.environ.get('FRESHSKY_SUBSCRIPTION_TIER', '')
+    ).strip().lower()
+    subscription_price_id = (
+        subscription_price_id or os.environ.get('FRESHSKY_SUBSCRIPTION_PRICE_ID', '')
+    ).strip()
+    if not subscription_amount_cents:
+        try:
+            subscription_amount_cents = int(
+                os.environ.get('FRESHSKY_SUBSCRIPTION_AMOUNT_CENTS', '0')
+            )
+        except ValueError:
+            subscription_amount_cents = 0
+    if free_request_limit is None and os.environ.get('FRESHSKY_FREE_REQUEST_LIMIT'):
+        try:
+            free_request_limit = max(
+                0, int(os.environ['FRESHSKY_FREE_REQUEST_LIMIT'])
+            )
+        except ValueError:
+            free_request_limit = None
+    subscription_ready = bool(
+        subscriptions_enabled
+        and stripe_enabled
+        and subscription_tier
+        and subscription_price_id
+        and subscription_amount_cents > 0
+    )
     primary_url = (primary_url or '').rstrip('/')
     redirect_uri = f'{primary_url}/auth/google/callback' if primary_url else ''
     primary_host = (urlparse(primary_url).hostname or '').lower()
@@ -103,10 +143,64 @@ def register_freemium(
         return host in _STATIC_COMMUNITY_HOSTS
 
     # ─── GATE FUNCTION ───────────────────────────────────────────
-    # This stub remains so existing call sites compile. Access is free and
-    # unrestricted regardless of account or historical subscription state.
+    def _session_has_subscription() -> bool:
+        return bool(
+            subscription_ready
+            and session.get('subscription_tier') == subscription_tier
+            and float(session.get('subscription_checked_at') or 0) > time.time() - 300
+        )
+
+    def _stripe_has_subscription(email: str) -> bool:
+        """Verify an active subscription for a confirmed email.
+
+        Stripe stays the source of truth. The five-minute session cache avoids
+        an API lookup on every generation request while keeping cancellations
+        reasonably prompt.
+        """
+        if not subscription_ready or not email:
+            return False
+        try:
+            import stripe
+            stripe.api_key = stripe_secret_key
+            customers = stripe.Customer.list(email=email, limit=10)
+            for customer in customers.data:
+                subscriptions = stripe.Subscription.list(
+                    customer=customer.id, status='all', limit=100
+                )
+                for item in subscriptions.data:
+                    status = getattr(item, 'status', '')
+                    if status not in {'active', 'trialing'}:
+                        continue
+                    for sub_item in getattr(getattr(item, 'items', None), 'data', []):
+                        if getattr(getattr(sub_item, 'price', None), 'id', '') == subscription_price_id:
+                            session['subscription_tier'] = subscription_tier
+                            session['subscription_checked_at'] = time.time()
+                            return True
+        except Exception as exc:
+            logger.warning('Subscription verification unavailable: %s', exc)
+        return False
+
     def check() -> Optional[tuple]:
-        return None
+        if not subscription_ready:
+            return None
+        if _session_has_subscription() or _stripe_has_subscription(
+            (session.get('user_email') or '').lower()
+        ):
+            return None
+        if free_request_limit is None:
+            return None
+        used = max(0, int(session.get('free_requests_used') or 0))
+        if used < max(0, free_request_limit):
+            session['free_requests_used'] = used + 1
+            return None
+        return jsonify(
+            error='A monthly plan is required for additional runs.',
+            code='subscription_required',
+            tier=subscription_tier,
+            price_cents=subscription_amount_cents,
+            subscribe_url='/subscribe',
+            login_url='/auth/google?next=/subscribe',
+        ), 402
 
     if expose_provider_metrics:
         from .llm import install_provider_metrics
@@ -197,11 +291,78 @@ def register_freemium(
 
     @app.route('/subscribe')
     def freemium_subscribe():
-        return redirect('https://www.freshskyai.com/donate', code=302)
+        if not subscription_ready:
+            return redirect('https://www.freshskyai.com/donate', code=302)
+        try:
+            import stripe
+            stripe.api_key = stripe_secret_key
+            args = {
+                'mode': 'subscription',
+                'line_items': [{'price': subscription_price_id, 'quantity': 1}],
+                'success_url': (
+                    f'{primary_url}/subscription/success'
+                    '?session_id={CHECKOUT_SESSION_ID}'
+                ),
+                'cancel_url': f'{primary_url}/?checkout=canceled',
+                'allow_promotion_codes': True,
+                'metadata': {
+                    'app_host': primary_host,
+                    'tier': subscription_tier,
+                },
+                'subscription_data': {
+                    'metadata': {
+                        'app_host': primary_host,
+                        'tier': subscription_tier,
+                    }
+                },
+            }
+            email = (session.get('user_email') or '').lower()
+            if email:
+                args['customer_email'] = email
+            checkout = stripe.checkout.Session.create(**args)
+            return redirect(checkout.url, code=303)
+        except Exception as exc:
+            logger.error('Stripe subscription checkout error: %s', exc)
+            return redirect(f'{primary_url}/?checkout=unavailable', code=302)
 
     @app.route('/subscribe/yearly')
     def freemium_subscribe_yearly():
-        return redirect('https://www.freshskyai.com/donate', code=302)
+        # FreshSky subscriptions are monthly only.
+        return redirect(url_for('freemium_subscribe'), code=302)
+
+    @app.route('/subscription/success')
+    def freemium_subscription_success():
+        if not subscription_ready:
+            return redirect(url_for('index'))
+        checkout_id = request.args.get('session_id', '')
+        if not checkout_id.startswith('cs_'):
+            return redirect(f'{primary_url}/?checkout=unverified', code=302)
+        try:
+            import stripe
+            stripe.api_key = stripe_secret_key
+            checkout = stripe.checkout.Session.retrieve(checkout_id)
+            metadata = getattr(checkout, 'metadata', {}) or {}
+            details = getattr(checkout, 'customer_details', None)
+            email = (getattr(details, 'email', '') or '').lower()
+            verified = bool(
+                getattr(checkout, 'status', '') == 'complete'
+                and getattr(checkout, 'mode', '') == 'subscription'
+                and getattr(checkout, 'subscription', None)
+                and metadata.get('app_host') == primary_host
+                and metadata.get('tier') == subscription_tier
+                and email
+            )
+            if not verified:
+                raise ValueError('checkout did not match this application')
+            session.permanent = True
+            session['user_email'] = email
+            session.setdefault('user_name', email.split('@')[0])
+            session['subscription_tier'] = subscription_tier
+            session['subscription_checked_at'] = time.time()
+            return redirect(f'{primary_url}/?checkout=success', code=303)
+        except Exception as exc:
+            logger.warning('Subscription checkout verification failed: %s', exc)
+            return redirect(f'{primary_url}/?checkout=unverified', code=302)
 
     @app.route('/billing')
     def freemium_billing_portal():
@@ -289,10 +450,13 @@ def register_freemium(
         base = {
             'logged_in': bool(email),
             'google_auth_enabled': google_auth_enabled,
-            'free_access': True,
-            'full_access': True,
-            'daily_limit': None,
+            'free_access': not subscription_ready or free_request_limit is None,
+            'full_access': not subscription_ready,
+            'daily_limit': free_request_limit,
             'stripe_enabled': bool(stripe_enabled),
+            'subscription_enabled': subscription_ready,
+            'subscription_tier': subscription_tier or None,
+            'subscription_price_cents': subscription_amount_cents or None,
             'community_mode': community_request,
             'donate_url': 'https://www.freshskyai.com/donate',
             # Compatibility alias for older app JavaScript.
@@ -301,6 +465,13 @@ def register_freemium(
         if email:
             base['email'] = email
             base['name'] = session.get('user_name', '')
+            if subscription_ready:
+                base['full_access'] = (
+                    _session_has_subscription() or _stripe_has_subscription(email)
+                )
+        if subscription_ready:
+            base['free_requests_used'] = int(session.get('free_requests_used') or 0)
+            base['subscribe_url'] = '/subscribe'
         return jsonify(base)
 
     return check

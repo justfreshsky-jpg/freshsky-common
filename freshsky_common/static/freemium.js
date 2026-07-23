@@ -8,6 +8,7 @@
     full_access: true,
     logged_in: false,
     google_auth_enabled: false,
+    subscription_enabled: false,
     donate_url: 'https://www.freshskyai.com/donate'
   };
   var DONATE_URL = STATE.donate_url;
@@ -43,6 +44,15 @@
       'Donate</a>';
   }
 
+  function planLink() {
+    var dollars = ((STATE.subscription_price_cents || 0) / 100).toFixed(2);
+    return '<a href="' + (STATE.subscribe_url || '/subscribe') + '" ' +
+      'data-fs-event="subscription_clicked" ' +
+      'style="display:inline-flex;align-items:center;background:linear-gradient(135deg,#5ee7f7,#7c8cff);' +
+      'color:#06101f;padding:5px 12px;border-radius:7px;text-decoration:none;font-weight:800;font-size:12.5px;">' +
+      'Unlock · $' + dollars + '/mo</a>';
+  }
+
   function renderBar() {
     var bar = document.getElementById('freemium-bar');
     if (!bar) {
@@ -58,15 +68,20 @@
       document.body.style.paddingTop = '38px';
     }
 
-    var access = '<span style="color:#4ade80;font-weight:600;font-size:12.5px;">Full access is free</span>';
+    var access = STATE.subscription_enabled
+      ? (STATE.full_access
+          ? '<span style="color:#67e8f9;font-weight:700;font-size:12.5px;">Plan active</span>'
+          : '<span style="color:#cbd5e1;font-weight:600;font-size:12.5px;">Free preview</span>')
+      : '<span style="color:#4ade80;font-weight:600;font-size:12.5px;">Full access is free</span>';
+    var action = STATE.subscription_enabled ? planLink() : donateLink();
     if (STATE.logged_in) {
       bar.innerHTML =
         '<span style="color:#94a3b8;">' + escapeHtml(STATE.name || STATE.email || '') + '</span>' +
-        access + donateLink() +
+        access + action +
         '<a href="/logout" style="color:#64748b;text-decoration:none;font-size:12.5px;">Sign out</a>';
       return;
     }
-    bar.innerHTML = access + donateLink() +
+    bar.innerHTML = access + action +
       (STATE.google_auth_enabled
         ? '<a href="/auth/google" style="color:#cbd5e1;text-decoration:none;font-size:12.5px;">Sign in</a>'
         : '');
@@ -114,8 +129,9 @@
       mark.innerHTML =
         'Part of <a href="https://www.freshskyai.com/" target="_blank" rel="noopener" ' +
           'style="color:#6366f1;text-decoration:none;font-weight:600;">Fresh Sky AI</a> · ' +
-        'Full access is free · <a href="' + DONATE_URL + '" target="_blank" rel="noopener" ' +
-          'data-fs-event="donate_clicked" style="color:#0f766e;text-decoration:underline;font-weight:600;">Donate</a>';
+        (STATE.subscription_enabled
+          ? 'Monthly plan available · <a href="/subscribe" data-fs-event="subscription_clicked" style="color:#5ee7f7;text-decoration:underline;font-weight:700;">View plan</a>'
+          : 'Full access is free · <a href="' + DONATE_URL + '" target="_blank" rel="noopener" data-fs-event="donate_clicked" style="color:#5ee7f7;text-decoration:underline;font-weight:600;">Donate</a>');
       document.body.appendChild(mark);
     } catch (e) {}
   }

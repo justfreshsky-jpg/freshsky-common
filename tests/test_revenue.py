@@ -28,17 +28,18 @@ def test_affiliate_compatibility_endpoint_is_empty():
     assert "Optional donations support the portfolio" in app.test_client().get("/humans.txt").text
 
 
-def test_portfolio_skin_is_light_accessible_and_bounded():
+def test_portfolio_skin_is_future_ready_accessible_and_bounded():
     snippet = og_snippet("Test App", "https://example.com/")
 
     assert snippet.count('id="fs-portfolio-skin"') == 1
-    assert "--fs-bg:#f4f7f8" in snippet
+    assert "--fs-bg:#050816" in snippet
+    assert "color-scheme:dark" in snippet
+    assert "linear-gradient(135deg,#5ee7f7,#7c8cff)" in snippet
     assert "main section" not in snippet
     assert "min-height:44px" in snippet
     assert "button{min-height:44px}" in snippet
     assert "min-height:48px" in snippet
     assert "prefers-reduced-motion:reduce" in snippet
-    assert "futuristic dark" not in snippet
 
 
 def test_install_injects_portfolio_skin_once_for_plain_html():
@@ -61,4 +62,4 @@ def test_install_injects_portfolio_skin_once_for_plain_html():
 
     assert response.status_code == 200
     assert body.count('id="fs-portfolio-skin"') == 1
-    assert "--fs-bg:#f4f7f8" in body
+    assert "--fs-bg:#050816" in body
