@@ -85,7 +85,7 @@ def register_global_rate_limits(
     ip_per_hour: int = 60,
     user_per_day: int = 200,
     skip_paths: tuple = ("/health", "/healthz", "/api/user-status",
-                          "/freemium.js", "/freshsky-access-v051.js",
+                          "/freemium.js", "/freshsky-access-v052.js",
                           "/api/affiliates", "/auth/google",
                           "/auth/google/callback", "/logout"),
     only_methods: tuple = ("POST",),

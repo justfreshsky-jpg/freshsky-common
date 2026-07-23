@@ -1,7 +1,6 @@
 """Security headers and input sanitization helpers."""
 from __future__ import annotations
 
-import os
 import re
 import unicodedata
 from typing import Optional
@@ -63,11 +62,13 @@ def install_security_headers(
         )
         if csp:
             resp.headers.setdefault("Content-Security-Policy", csp)
-        if request.is_secure or os.environ.get("FORCE_HTTPS"):
-            resp.headers.setdefault(
-                "Strict-Transport-Security",
-                "max-age=31536000; includeSubDomains",
-            )
+        # Every production FreshSky surface is HTTPS-only. Setting HSTS
+        # unconditionally also covers managed proxies that terminate TLS
+        # before Flask and therefore report request.is_secure as false.
+        resp.headers.setdefault(
+            "Strict-Transport-Security",
+            "max-age=31536000; includeSubDomains",
+        )
         if request.path in no_store_paths:
             resp.headers["Cache-Control"] = "private, no-store"
             resp.headers.setdefault("X-Robots-Tag", "noindex, nofollow, noarchive")

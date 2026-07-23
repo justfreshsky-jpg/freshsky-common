@@ -69,6 +69,7 @@ def register_freemium(
     subscription_price_id: str = '',
     subscription_amount_cents: int = 0,
     free_request_limit: Optional[int] = None,
+    gate_all_post: bool = False,
 ) -> Callable[[], Optional[Response]]:
     """Wire free-access routes onto ``app`` and return the gate function.
 
@@ -126,8 +127,8 @@ def register_freemium(
     primary_url = (primary_url or '').rstrip('/')
     redirect_uri = f'{primary_url}/auth/google/callback' if primary_url else ''
     primary_host = (urlparse(primary_url).hostname or '').lower()
-    # Community mode is retained for UI compatibility with civic-volunteer
-    # apps, but every app now receives the same unrestricted access.
+    # Community mode is retained as a product-category signal for
+    # civic-volunteer apps. It never bypasses a configured subscription.
     # Three triggers (any one is enough):
     #   1. register_freemium(..., community_mode=True) in app.py
     #   2. COMMUNITY_TOOL=true env var on the Cloud Run service
@@ -204,6 +205,17 @@ def register_freemium(
             subscribe_url='/subscribe',
             login_url='/auth/google?next=/subscribe',
         ), 402
+
+    if gate_all_post:
+        _ungated_post_paths = {
+            '/stripe-webhook',
+        }
+
+        @app.before_request
+        def freemium_global_post_gate():
+            if request.method != 'POST' or request.path in _ungated_post_paths:
+                return None
+            return check()
 
     if expose_provider_metrics:
         from .llm import install_provider_metrics
@@ -435,7 +447,7 @@ def register_freemium(
     # their own static/ directory.
     import importlib.resources as _ir
 
-    _access_bundle_path = '/freshsky-access-v051.js'
+    _access_bundle_path = '/freshsky-access-v052.js'
 
     def _freemium_js_response():
         try:
@@ -446,7 +458,7 @@ def register_freemium(
         resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
         return resp
 
-    app.add_url_rule(_access_bundle_path, 'freshsky_access_bundle_v051', _freemium_js_response)
+    app.add_url_rule(_access_bundle_path, 'freshsky_access_bundle_v052', _freemium_js_response)
 
     @app.route('/freemium.js')
     def freemium_js():
