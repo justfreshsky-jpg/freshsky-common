@@ -1,6 +1,13 @@
 from flask import Flask
 
-from freshsky_common.revenue import adsense_snippet, install, og_snippet, partners_for_category
+from freshsky_common.revenue import (
+    adsense_snippet,
+    cross_promo_html,
+    install,
+    install_visuals,
+    og_snippet,
+    partners_for_category,
+)
 
 
 def test_commercial_revenue_paths_stay_disabled(monkeypatch):
@@ -63,3 +70,19 @@ def test_install_injects_portfolio_skin_once_for_plain_html():
     assert response.status_code == 200
     assert body.count('id="fs-portfolio-skin"') == 1
     assert "--fs-bg:#050816" in body
+
+
+def test_visual_only_install_adds_no_routes_or_named_cross_promotion():
+    app = Flask(__name__)
+
+    @app.route("/")
+    def index():
+        return "<html><head></head><body>Ready</body></html>"
+
+    install_visuals(app)
+
+    assert "--fs-bg:#050816" in app.test_client().get("/").text
+    assert app.test_client().get("/robots.txt").status_code == 404
+    promo = cross_promo_html("foia", "legal")
+    assert "Fresh Sky AI catalog" in promo
+    assert "Small Claims" not in promo

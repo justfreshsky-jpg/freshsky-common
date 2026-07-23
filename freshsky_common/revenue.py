@@ -296,37 +296,19 @@ def trust_line_html(category: str) -> str:
 
 
 def cross_promo_html(current_slug: str, current_category: str, count: int = 3) -> str:
-    """Render an HTML snippet recommending up to `count` related apps from
-    the same HULEC category. Excludes the current app. If the category has
-    too few peers, falls back to a sibling category. Returns '' if nothing
-    sensible to recommend (e.g. unknown slug)."""
-    same = [p for p in PORTFOLIO if p['category'] == current_category and p['slug'] != current_slug]
-    if len(same) < count:
-        sibling = _SIBLING_CATEGORY.get(current_category)
-        if sibling:
-            same += [p for p in PORTFOLIO if p['category'] == sibling and p['slug'] != current_slug and p not in same]
-    picks = same[:count]
-    if not picks:
-        return ''
+    """Link back to the neutral catalog without naming another service.
 
-    cards = []
-    for p in picks:
-        cards.append(
-            f'<a href="{p["url"]}" target="_blank" rel="noopener" '
-            f'style="display:block;padding:12px 14px;border:1px solid #e2e8f0;border-radius:10px;'
-            f'background:#fff;text-decoration:none;color:#1e293b;transition:border-color .15s">'
-            f'<div style="font-weight:600;font-size:14px;margin-bottom:2px">{p["brand"]}</div>'
-            f'<div style="color:#64748b;font-size:12px">{p["url"].replace("https://","").rstrip("/")}</div>'
-            f'</a>'
-        )
+    Reusable product patterns may cross repository boundaries; product names,
+    customer context, identity, and data do not.
+    """
+    del current_slug, current_category, count
     return (
-        '<section style="max-width:720px;margin:32px auto 16px;padding:0 16px">'
-        '<h3 style="font-size:13px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;text-align:center">'
-        'Other Fresh Sky AI tools you might need'
-        '</h3>'
-        '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px">'
-        + ''.join(cards) +
-        '</div>'
+        '<section class="fs-catalog-link" style="max-width:720px;margin:32px auto 16px;padding:0 16px;text-align:center">'
+        '<a href="https://www.freshskyai.com/hub" target="_blank" rel="noopener" '
+        'style="display:inline-flex;min-height:44px;align-items:center;padding:10px 14px;'
+        'border:1px solid rgba(94,231,247,.28);border-radius:999px;background:rgba(94,231,247,.08);'
+        'text-decoration:none;color:#5ee7f7;font-weight:700;font-size:13px">'
+        'Return to the Fresh Sky AI catalog</a>'
         '</section>'
     )
 
@@ -495,9 +477,15 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
             'app_brand': brand,
         }
 
-    # Inject the shared interface foundation into every HTML response, regardless
-    # of whether the template renders {{ og_tags|safe }}. Idempotent: skips
-    # if the skin marker is already in the body (e.g., when og_tags is rendered).
+    install_visuals(app, ad_snippet=ad_snippet)
+
+
+def install_visuals(app: Flask, *, ad_snippet: str = '') -> None:
+    """Inject only the shared interface foundation, without adding routes.
+
+    Foundation and civic services can use this when they already own their SEO,
+    privacy, terms, and sitemap endpoints.
+    """
     @app.after_request
     def _inject_skin(response):
         ct = (response.content_type or '').lower()
