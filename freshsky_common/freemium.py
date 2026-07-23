@@ -475,6 +475,10 @@ def register_freemium(
             return response
         if 'text/html' not in response.headers.get('Content-Type', ''):
             return response
+        # Compression middleware may have already encoded the body. Rewriting
+        # a compressed response as UTF-8 corrupts it and can raise at runtime.
+        if response.headers.get('Content-Encoding'):
+            return response
         body = response.get_data(as_text=True)
         if _access_bundle_path in body:
             return response
