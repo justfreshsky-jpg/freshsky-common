@@ -56,9 +56,10 @@ from flask import (
 
 logger = logging.getLogger(__name__)
 
-PLAN_RANK = {'focus': 1, 'plus': 2, 'advanced': 3}
+PLAN_RANK = {'focus': 1, 'civic': 2, 'plus': 3, 'advanced': 4}
 PLAN_LIMITS = {
     'focus': {'daily': 30, 'monthly': 300},
+    'civic': {'daily': 75, 'monthly': 900},
     'plus': {'daily': 75, 'monthly': 900},
     'advanced': {'daily': 150, 'monthly': 2000},
 }
@@ -527,7 +528,7 @@ def register_freemium(
     @app.route('/subscribe')
     def freemium_subscribe():
         if not subscription_ready:
-            return redirect('https://www.freshskyai.com/donate', code=302)
+            return redirect(url_for('index'), code=302)
         try:
             import stripe
             stripe.api_key = stripe_secret_key
@@ -614,7 +615,7 @@ def register_freemium(
             stripe.api_key = stripe_secret_key
             customers = stripe.Customer.list(email=session['user_email'], limit=1)
             if not customers.data:
-                return redirect('https://www.freshskyai.com/donate', code=302)
+                return redirect(url_for('index'), code=302)
             portal = stripe.billing_portal.Session.create(
                 customer=customers.data[0].id,
                 return_url=primary_url or url_for('index', _external=True),
@@ -746,9 +747,6 @@ def register_freemium(
             'paid_daily_limit': limits.get('daily'),
             'paid_monthly_limit': limits.get('monthly'),
             'community_mode': community_request,
-            'donate_url': 'https://www.freshskyai.com/donate',
-            # Compatibility alias for older app JavaScript.
-            'sponsor_url': 'https://www.freshskyai.com/donate',
         }
         if email:
             base['email'] = email

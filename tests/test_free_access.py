@@ -20,12 +20,12 @@ def make_app(**freemium_options):
     return app
 
 
-def test_legacy_subscribe_routes_redirect_to_donate():
+def test_disabled_subscription_routes_return_to_app():
     client = make_app().test_client()
     monthly = client.get("/subscribe")
     yearly = client.get("/subscribe/yearly")
     assert monthly.status_code == 302
-    assert monthly.location == "https://www.freshskyai.com/donate"
+    assert monthly.location == "/"
     assert yearly.status_code == 302
     assert yearly.location == "/subscribe"
 
@@ -105,7 +105,8 @@ def test_user_status_reports_full_free_access():
     assert payload["free_access"] is True
     assert payload["full_access"] is True
     assert payload["free_preview_limit"] is None
-    assert payload["donate_url"].endswith("/donate")
+    assert "donate_url" not in payload
+    assert "sponsor_url" not in payload
     assert "pricing_url" not in payload
     assert "is_pro" not in payload
 
@@ -350,7 +351,13 @@ def test_civic_host_has_the_same_full_access():
     assert client.get(
         "/subscribe",
         headers={"Host": "nfirs.freshskyai.com"},
-    ).location == "https://www.freshskyai.com/donate"
+    ).location == "/"
+
+
+def test_civic_plan_sits_between_focus_and_plus():
+    assert freemium.PLAN_RANK["focus"] < freemium.PLAN_RANK["civic"]
+    assert freemium.PLAN_RANK["civic"] < freemium.PLAN_RANK["plus"]
+    assert freemium.PLAN_LIMITS["civic"] == {"daily": 75, "monthly": 900}
 
 
 def test_optional_public_routes_are_disabled_by_default():

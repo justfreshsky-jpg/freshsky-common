@@ -8,10 +8,8 @@
     full_access: true,
     logged_in: false,
     google_auth_enabled: false,
-    subscription_enabled: false,
-    donate_url: 'https://www.freshskyai.com/donate'
+    subscription_enabled: false
   };
-  var DONATE_URL = STATE.donate_url;
 
   function installVisualSystem() {
     if (document.getElementById('freshsky-visual-system')) return;
@@ -39,7 +37,6 @@
       .then(function(response) { return response.json(); })
       .then(function(state) {
         Object.assign(STATE, state);
-        DONATE_URL = STATE.donate_url || STATE.sponsor_url || DONATE_URL;
         renderBar();
       })
       .catch(function() {});

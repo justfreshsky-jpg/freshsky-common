@@ -68,7 +68,7 @@ _PRIVACY_TEMPLATE = """<!DOCTYPE html>
 <h2>Changes</h2>
 <p>If this policy changes meaningfully, we'll update the date at the top. We'll never quietly start collecting more.</p>
 
-<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/terms">Terms of Use</a> · <a href="https://www.freshskyai.com/donate">Donate</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
+<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/terms">Terms of Use</a> · <a href="https://www.freshskyai.com/#products">Plans</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
 </body></html>"""
 
 
@@ -109,7 +109,7 @@ _TERMS_TEMPLATE = """<!DOCTYPE html>
 <p>The tool is provided "as is." We make no warranty about uptime, accuracy, completeness, or fitness for any particular purpose. If the tool is wrong, breaks, or is unavailable when you need it, we're not liable for the consequences. To the maximum extent allowed by law, our total liability for free tool access is capped at zero.</p>
 
 <h2>Cost</h2>
-<p>Fresh Sky AI tools are available without an access fee. Optional donations help cover infrastructure but do not purchase access, priority, or guaranteed availability. Provider safety controls and anti-abuse protections may still temporarily restrict harmful or automated use. Fresh Sky LLC is not a charity, and payments are not tax-deductible charitable donations.</p>
+<p>Fresh Sky AI tools include a limited preview allowance. Continued AI use requires the monthly plan displayed by the tool. Civic-volunteer tools use a discounted Civic plan. Provider safety controls and anti-abuse protections may still temporarily restrict harmful or automated use.</p>
 
 <h2>Changes</h2>
 <p>We may update these terms. Continuing to use the tool after a change means you accept the new version. The date at the top tells you when the current version was published.</p>
@@ -117,7 +117,7 @@ _TERMS_TEMPLATE = """<!DOCTYPE html>
 <h2>Contact</h2>
 <p>Questions, concerns, complaints, kudos: <a href="https://www.freshskyai.com/contact">freshskyai.com/contact</a>.</p>
 
-<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/privacy">Privacy Policy</a> · <a href="https://www.freshskyai.com/donate">Donate</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
+<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/privacy">Privacy Policy</a> · <a href="https://www.freshskyai.com/#products">Plans</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
 </body></html>"""
 
 
