@@ -66,6 +66,8 @@ def subscription_item_tier(
     item,
     configured_price_id: str = '',
     configured_tier: str = '',
+    *,
+    product_override=None,
 ) -> str:
     """Return the trusted FreshSky tier represented by a Stripe line item."""
     price = getattr(item, 'price', None)
@@ -77,10 +79,12 @@ def subscription_item_tier(
     if configured_price_id and price_id == configured_price_id:
         return configured_tier if configured_tier in PLAN_RANK else ''
 
-    product = (
-        price.get('product', {}) if isinstance(price, dict)
-        else getattr(price, 'product', None)
-    )
+    product = product_override
+    if product is None:
+        product = (
+            price.get('product', {}) if isinstance(price, dict)
+            else getattr(price, 'product', None)
+        )
     metadata = (
         product.get('metadata', {}) if isinstance(product, dict)
         else getattr(product, 'metadata', {}) or {}
@@ -342,7 +346,7 @@ def register_freemium(
                     customer=customer.id,
                     status='all',
                     limit=100,
-                    expand=['data.items.data.price.product'],
+                    expand=['data.items.data.price'],
                 )
                 for item in subscriptions.data:
                     status = getattr(item, 'status', '')
@@ -352,6 +356,16 @@ def register_freemium(
                         tier = subscription_item_tier(
                             sub_item, subscription_price_id, subscription_tier
                         )
+                        price = getattr(sub_item, 'price', None)
+                        product_ref = getattr(price, 'product', None)
+                        if not tier and isinstance(product_ref, str):
+                            product = stripe.Product.retrieve(product_ref)
+                            tier = subscription_item_tier(
+                                sub_item,
+                                subscription_price_id,
+                                subscription_tier,
+                                product_override=product,
+                            )
                         if PLAN_RANK.get(tier, 0) > PLAN_RANK.get(best_tier, 0):
                             best_tier = tier
             if _tier_allows(best_tier):

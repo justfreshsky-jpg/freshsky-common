@@ -165,10 +165,11 @@ def test_optional_global_post_gate_counts_three_previews():
 
 
 def test_higher_portfolio_plan_unlocks_lower_tier_app(monkeypatch):
+    subscription_list_args = {}
     plus_item = SimpleNamespace(
         price=SimpleNamespace(
             id="price_plus_monthly",
-            product=SimpleNamespace(name="FreshSky Plus 1999 month", metadata={}),
+            product="prod_plus",
         )
     )
     active_subscription = SimpleNamespace(
@@ -183,7 +184,17 @@ def test_higher_portfolio_plan_unlocks_lower_tier_app(monkeypatch):
             )
         ),
         Subscription=SimpleNamespace(
-            list=lambda **kwargs: SimpleNamespace(data=[active_subscription])
+            list=lambda **kwargs: (
+                subscription_list_args.update(kwargs)
+                or SimpleNamespace(data=[active_subscription])
+            )
+        ),
+        Product=SimpleNamespace(
+            retrieve=lambda product_id: SimpleNamespace(
+                id=product_id,
+                name="FreshSky Plus 1999 month",
+                metadata={},
+            )
         ),
     )
     monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
@@ -205,6 +216,7 @@ def test_higher_portfolio_plan_unlocks_lower_tier_app(monkeypatch):
     assert response.get_json()["subscription_tier"] == "plus"
     assert response.get_json()["paid_daily_limit"] == 75
     assert response.get_json()["paid_monthly_limit"] == 900
+    assert subscription_list_args["expand"] == ["data.items.data.price"]
 
 
 def test_paid_plan_usage_limit_returns_429(monkeypatch):
