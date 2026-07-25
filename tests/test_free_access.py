@@ -5,6 +5,7 @@ from urllib.parse import parse_qs, urlparse
 from flask import Flask
 
 from freshsky_common.freemium import register_freemium
+from freshsky_common import freemium
 
 
 def make_app(**freemium_options):
@@ -103,7 +104,7 @@ def test_user_status_reports_full_free_access():
     payload = response.get_json()
     assert payload["free_access"] is True
     assert payload["full_access"] is True
-    assert payload["daily_limit"] is None
+    assert payload["free_preview_limit"] is None
     assert payload["donate_url"].endswith("/donate")
     assert "pricing_url" not in payload
     assert "is_pro" not in payload
@@ -118,10 +119,10 @@ def test_versioned_access_bundle_replaces_stable_script_path():
     client = app.test_client()
     page = client.get("/")
     assert page.status_code == 200
-    assert 'src="/freshsky-access-v052.js"' in page.get_data(as_text=True)
+    assert 'src="/freshsky-access-v053.js"' in page.get_data(as_text=True)
     assert 'src="/freemium.js"' not in page.get_data(as_text=True)
 
-    bundle = client.get("/freshsky-access-v052.js")
+    bundle = client.get("/freshsky-access-v053.js")
     assert bundle.status_code == 200
     assert "installVisualSystem" in bundle.get_data(as_text=True)
     assert bundle.headers["Cache-Control"] == "public, max-age=31536000, immutable"
@@ -137,8 +138,8 @@ def test_versioned_access_bundle_is_injected_when_template_has_no_script():
 
     page = app.test_client().get("/")
     body = page.get_data(as_text=True)
-    assert body.count('src="/freshsky-access-v052.js"') == 1
-    assert body.index("<main>") < body.index('src="/freshsky-access-v052.js"')
+    assert body.count('src="/freshsky-access-v053.js"') == 1
+    assert body.index("<main>") < body.index('src="/freshsky-access-v053.js"')
 
 
 def test_optional_global_post_gate_counts_three_previews():
@@ -161,6 +162,128 @@ def test_optional_global_post_gate_counts_three_previews():
     blocked = client.post("/api/work")
     assert blocked.status_code == 402
     assert blocked.get_json()["price_cents"] == 2999
+
+
+def test_higher_portfolio_plan_unlocks_lower_tier_app(monkeypatch):
+    plus_item = SimpleNamespace(
+        price=SimpleNamespace(
+            id="price_plus_monthly",
+            product=SimpleNamespace(name="FreshSky Plus 1999 month", metadata={}),
+        )
+    )
+    active_subscription = SimpleNamespace(
+        status="active",
+        items=SimpleNamespace(data=[plus_item]),
+    )
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        Customer=SimpleNamespace(
+            list=lambda **kwargs: SimpleNamespace(
+                data=[SimpleNamespace(id="cus_portfolio")]
+            )
+        ),
+        Subscription=SimpleNamespace(
+            list=lambda **kwargs: SimpleNamespace(data=[active_subscription])
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+        free_request_limit=3,
+    )
+    client = app.test_client()
+    with client.session_transaction() as user_session:
+        user_session["user_email"] = "person@example.com"
+
+    response = client.get("/api/user-status")
+
+    assert response.get_json()["full_access"] is True
+    assert response.get_json()["subscription_tier"] == "plus"
+    assert response.get_json()["paid_daily_limit"] == 75
+    assert response.get_json()["paid_monthly_limit"] == 900
+
+
+def test_paid_plan_usage_limit_returns_429(monkeypatch):
+    monkeypatch.setenv("FRESHSKY_ENFORCE_PAID_LIMITS", "true")
+    monkeypatch.setattr(
+        "freshsky_common.freemium._consume_paid_allowance",
+        lambda email, tier, key: (
+            False,
+            {
+                "daily": 30,
+                "monthly": 300,
+                "daily_used": 30,
+                "monthly_used": 87,
+            },
+        ),
+    )
+    limited_app = Flask(__name__)
+    limited_app.secret_key = "test"
+    check = register_freemium(
+        limited_app,
+        stripe_secret_key="sk_test_subscription",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+        free_request_limit=3,
+    )
+
+    @limited_app.post("/api/work")
+    def limited_work():
+        return check() or {"ok": True}
+
+    limited_client = limited_app.test_client()
+    with limited_client.session_transaction() as user_session:
+        user_session["user_email"] = "person@example.com"
+        user_session["subscription_tier"] = "focus"
+        user_session["subscription_checked_at"] = 9999999999
+    response = limited_client.post("/api/work")
+
+    assert response.status_code == 429
+    assert response.get_json()["code"] == "plan_usage_limit_reached"
+    assert response.get_json()["daily_limit"] == 30
+
+
+def test_subapp_paid_usage_uses_signed_central_meter(monkeypatch):
+    captured = {}
+
+    class MeterResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "allowed": True,
+                "usage": {
+                    "daily": 30,
+                    "monthly": 300,
+                    "daily_used": 1,
+                    "monthly_used": 1,
+                },
+            }
+
+    def post(url, **kwargs):
+        captured["url"] = url
+        captured.update(kwargs)
+        return MeterResponse()
+
+    monkeypatch.setenv("K_SERVICE", "foiahelper")
+    monkeypatch.setattr("requests.post", post)
+
+    allowed, usage = freemium._consume_paid_allowance(
+        "person@example.com", "focus", "sk_test_subscription"
+    )
+
+    assert allowed is True
+    assert usage["monthly_used"] == 1
+    assert captured["url"].endswith("/internal/paid-usage/consume")
+    assert b"person@example.com" not in captured["data"]
+    assert captured["headers"]["X-FreshSky-Usage-Signature"].startswith("v1=")
 
 
 def test_stripe_secret_enables_billing_without_retired_price_ids(monkeypatch):

@@ -77,7 +77,7 @@
       ? (STATE.full_access
           ? '<span class="fs-access-state" data-active="true">Plan active</span>'
           : '<span class="fs-access-state">' +
-              String(STATE.daily_limit || 3) + ' free AI runs</span>')
+              String(STATE.free_preview_limit || 3) + ' included previews</span>')
       : (mainCatalog
           ? '<span class="fs-access-state" data-active="true">Catalog · 3 free AI previews</span>'
           : '<span class="fs-access-state" data-active="true">' +

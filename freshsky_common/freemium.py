@@ -34,10 +34,14 @@ Usage in app.py::
 
 The default remains unrestricted access. A service must explicitly provide a
 monthly Stripe Price ID *and* enable subscriptions before the gate can charge.
-Provider safety controls and platform cost controls remain separate.
+FreshSky plans unlock their own tier and lower tiers, with a portfolio-wide
+paid usage allowance. Provider safety controls and platform cost controls
+remain separate.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import logging
 import os
 import secrets
@@ -51,6 +55,161 @@ from flask import (
 
 
 logger = logging.getLogger(__name__)
+
+PLAN_RANK = {'focus': 1, 'plus': 2, 'advanced': 3}
+PLAN_LIMITS = {
+    'focus': {'daily': 30, 'monthly': 300},
+    'plus': {'daily': 75, 'monthly': 900},
+    'advanced': {'daily': 150, 'monthly': 2000},
+}
+def subscription_item_tier(
+    item,
+    configured_price_id: str = '',
+    configured_tier: str = '',
+) -> str:
+    """Return the trusted FreshSky tier represented by a Stripe line item."""
+    price = getattr(item, 'price', None)
+    if isinstance(item, dict):
+        price = item.get('price', {})
+    price_id = (
+        price.get('id', '') if isinstance(price, dict) else getattr(price, 'id', '')
+    )
+    if configured_price_id and price_id == configured_price_id:
+        return configured_tier if configured_tier in PLAN_RANK else ''
+
+    product = (
+        price.get('product', {}) if isinstance(price, dict)
+        else getattr(price, 'product', None)
+    )
+    metadata = (
+        product.get('metadata', {}) if isinstance(product, dict)
+        else getattr(product, 'metadata', {}) or {}
+    )
+    tier = str(
+        metadata.get('freshsky_tier') or metadata.get('tier') or ''
+    ).strip().lower()
+    if tier in PLAN_RANK:
+        return tier
+
+    name = str(
+        product.get('name', '') if isinstance(product, dict)
+        else getattr(product, 'name', '')
+    ).strip().lower()
+    for candidate in PLAN_RANK:
+        if name.startswith(f'freshsky {candidate}'):
+            return candidate
+    return ''
+
+
+_USAGE_FIRESTORE_CLIENT = None
+_USAGE_FIRESTORE_TRIED = False
+
+
+def _usage_firestore_client():
+    global _USAGE_FIRESTORE_CLIENT, _USAGE_FIRESTORE_TRIED
+    if _USAGE_FIRESTORE_TRIED:
+        return _USAGE_FIRESTORE_CLIENT
+    _USAGE_FIRESTORE_TRIED = True
+    try:
+        from google.cloud import firestore
+        _USAGE_FIRESTORE_CLIENT = firestore.Client()
+    except Exception as exc:
+        logger.warning('Paid usage meter unavailable: %s', exc)
+    return _USAGE_FIRESTORE_CLIENT
+
+
+def consume_paid_identity(identity: str, tier: str) -> tuple[bool, dict]:
+    """Atomically consume one portfolio-wide paid AI run by pseudonymous ID."""
+    limits = PLAN_LIMITS[tier]
+    client = _usage_firestore_client()
+    if client is None:
+        raise RuntimeError('paid usage meter is unavailable')
+
+    from google.cloud import firestore
+
+    now = time.gmtime()
+    month = time.strftime('%Y%m', now)
+    day = time.strftime('%Y%m%d', now)
+    reference = client.collection('paid_ai_usage_monthly').document(
+        f'{month}-{identity}'
+    )
+    transaction = client.transaction()
+
+    @firestore.transactional
+    def consume(txn):
+        snapshot = reference.get(transaction=txn)
+        data = snapshot.to_dict() if snapshot.exists else {}
+        total = max(0, int(data.get('total') or 0))
+        days = dict(data.get('days') or {})
+        today = max(0, int(days.get(day) or 0))
+        if total >= limits['monthly'] or today >= limits['daily']:
+            return False, {'daily_used': today, 'monthly_used': total, **limits}
+        days[day] = today + 1
+        txn.set(
+            reference,
+            {
+                'tier': tier,
+                'month': month,
+                'total': total + 1,
+                'days': days,
+                'updated_at': firestore.SERVER_TIMESTAMP,
+            },
+        )
+        return True, {
+            'daily_used': today + 1,
+            'monthly_used': total + 1,
+            **limits,
+        }
+
+    return consume(transaction)
+
+
+def _consume_paid_allowance(email: str, tier: str, signing_key: str) -> tuple[bool, dict]:
+    """Consume one paid run locally on the hub or via its signed central meter."""
+    identity = hmac.new(
+        signing_key.encode('utf-8'),
+        email.encode('utf-8'),
+        hashlib.sha256,
+    ).hexdigest()
+    service = os.environ.get('K_SERVICE', '').strip()
+    meter_url = os.environ.get('FRESHSKY_USAGE_METER_URL', '').strip()
+    if not meter_url and service and service != 'freshskyai':
+        meter_url = (
+            'https://www.freshskyai.com/internal/paid-usage/consume'
+        )
+    if not meter_url:
+        return consume_paid_identity(identity, tier)
+
+    import json
+    import requests
+
+    body = {'identity': identity, 'tier': tier}
+    encoded = json.dumps(
+        body, separators=(',', ':'), sort_keys=True
+    ).encode('utf-8')
+    timestamp = str(int(time.time()))
+    signature = hmac.new(
+        signing_key.encode('utf-8'),
+        timestamp.encode('ascii') + b'.' + encoded,
+        hashlib.sha256,
+    ).hexdigest()
+    response = requests.post(
+        meter_url,
+        data=encoded,
+        headers={
+            'Content-Type': 'application/json',
+            'X-FreshSky-Usage-Timestamp': timestamp,
+            'X-FreshSky-Usage-Signature': f'v1={signature}',
+        },
+        timeout=5,
+    )
+    response.raise_for_status()
+    result = response.json()
+    usage = dict(result.get('usage') or {})
+    required = {'daily', 'monthly', 'daily_used', 'monthly_used'}
+    if not required.issubset(usage):
+        raise RuntimeError('central usage meter returned an invalid response')
+    return bool(result.get('allowed')), usage
 
 
 def register_freemium(
@@ -147,14 +306,20 @@ def register_freemium(
         return host in _STATIC_COMMUNITY_HOSTS
 
     # ─── GATE FUNCTION ───────────────────────────────────────────
-    def _session_has_subscription() -> bool:
-        return bool(
-            subscription_ready
-            and session.get('subscription_tier') == subscription_tier
-            and float(session.get('subscription_checked_at') or 0) > time.time() - 300
-        )
+    def _tier_allows(entitled_tier: str) -> bool:
+        return PLAN_RANK.get(entitled_tier, 0) >= PLAN_RANK.get(subscription_tier, 0)
 
-    def _stripe_has_subscription(email: str) -> bool:
+    def _session_subscription_tier() -> str:
+        tier = str(session.get('subscription_tier') or '').lower()
+        if (
+            subscription_ready
+            and _tier_allows(tier)
+            and float(session.get('subscription_checked_at') or 0) > time.time() - 300
+        ):
+            return tier
+        return ''
+
+    def _stripe_subscription_tier(email: str) -> str:
         """Verify an active subscription for a confirmed email.
 
         Stripe stays the source of truth. The five-minute session cache avoids
@@ -162,35 +327,72 @@ def register_freemium(
         reasonably prompt.
         """
         if not subscription_ready or not email:
-            return False
+            return ''
         try:
             import stripe
             stripe.api_key = stripe_secret_key
             customers = stripe.Customer.list(email=email, limit=10)
+            best_tier = ''
             for customer in customers.data:
                 subscriptions = stripe.Subscription.list(
-                    customer=customer.id, status='all', limit=100
+                    customer=customer.id,
+                    status='all',
+                    limit=100,
+                    expand=['data.items.data.price.product'],
                 )
                 for item in subscriptions.data:
                     status = getattr(item, 'status', '')
                     if status not in {'active', 'trialing'}:
                         continue
                     for sub_item in getattr(getattr(item, 'items', None), 'data', []):
-                        if getattr(getattr(sub_item, 'price', None), 'id', '') == subscription_price_id:
-                            session['subscription_tier'] = subscription_tier
-                            session['subscription_checked_at'] = time.time()
-                            return True
+                        tier = subscription_item_tier(
+                            sub_item, subscription_price_id, subscription_tier
+                        )
+                        if PLAN_RANK.get(tier, 0) > PLAN_RANK.get(best_tier, 0):
+                            best_tier = tier
+            if _tier_allows(best_tier):
+                session['subscription_tier'] = best_tier
+                session['subscription_checked_at'] = time.time()
+                return best_tier
         except Exception as exc:
             logger.warning('Subscription verification unavailable: %s', exc)
-        return False
+        return ''
 
     def check() -> Optional[tuple]:
         if not subscription_ready:
             return None
-        if _session_has_subscription() or _stripe_has_subscription(
-            (session.get('user_email') or '').lower()
-        ):
-            return None
+        email = (session.get('user_email') or '').lower()
+        entitled_tier = _session_subscription_tier() or _stripe_subscription_tier(email)
+        if entitled_tier:
+            enforce_usage = (
+                os.environ.get('FRESHSKY_ENFORCE_PAID_LIMITS', '').lower()
+                in {'1', 'true', 'yes'}
+                or bool(os.environ.get('K_SERVICE'))
+            )
+            if not enforce_usage:
+                return None
+            try:
+                allowed, usage = _consume_paid_allowance(
+                    email, entitled_tier, stripe_secret_key
+                )
+            except Exception as exc:
+                logger.error('Paid usage meter failed closed: %s', exc)
+                return jsonify(
+                    error='Usage verification is temporarily unavailable.',
+                    code='usage_meter_unavailable',
+                ), 503
+            if allowed:
+                return None
+            return jsonify(
+                error='Your plan usage allowance has been reached.',
+                code='plan_usage_limit_reached',
+                tier=entitled_tier,
+                daily_limit=usage['daily'],
+                monthly_limit=usage['monthly'],
+                daily_used=usage['daily_used'],
+                monthly_used=usage['monthly_used'],
+                billing_url='/billing',
+            ), 429
         if free_request_limit is None:
             return None
         used = max(0, int(session.get('free_requests_used') or 0))
@@ -447,7 +649,7 @@ def register_freemium(
     # their own static/ directory.
     import importlib.resources as _ir
 
-    _access_bundle_path = '/freshsky-access-v052.js'
+    _access_bundle_path = '/freshsky-access-v053.js'
 
     def _freemium_js_response():
         try:
@@ -458,7 +660,7 @@ def register_freemium(
         resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
         return resp
 
-    app.add_url_rule(_access_bundle_path, 'freshsky_access_bundle_v052', _freemium_js_response)
+    app.add_url_rule(_access_bundle_path, 'freshsky_access_bundle_v053', _freemium_js_response)
 
     @app.route('/freemium.js')
     def freemium_js():
@@ -505,16 +707,26 @@ def register_freemium(
     def freemium_user_status():
         email = (session.get('user_email') or '').lower()
         community_request = _is_community_request()
+        entitled_tier = ''
+        if email and subscription_ready:
+            entitled_tier = (
+                _session_subscription_tier() or _stripe_subscription_tier(email)
+            )
+        display_tier = entitled_tier or subscription_tier
+        limits = PLAN_LIMITS.get(display_tier, {})
         base = {
             'logged_in': bool(email),
             'google_auth_enabled': google_auth_enabled,
             'free_access': not subscription_ready or free_request_limit is None,
             'full_access': not subscription_ready,
-            'daily_limit': free_request_limit,
+            'free_preview_limit': free_request_limit,
             'stripe_enabled': bool(stripe_enabled),
             'subscription_enabled': subscription_ready,
-            'subscription_tier': subscription_tier or None,
+            'subscription_tier': display_tier or None,
+            'required_subscription_tier': subscription_tier or None,
             'subscription_price_cents': subscription_amount_cents or None,
+            'paid_daily_limit': limits.get('daily'),
+            'paid_monthly_limit': limits.get('monthly'),
             'community_mode': community_request,
             'donate_url': 'https://www.freshskyai.com/donate',
             # Compatibility alias for older app JavaScript.
@@ -524,9 +736,7 @@ def register_freemium(
             base['email'] = email
             base['name'] = session.get('user_name', '')
             if subscription_ready:
-                base['full_access'] = (
-                    _session_has_subscription() or _stripe_has_subscription(email)
-                )
+                base['full_access'] = bool(entitled_tier)
         if subscription_ready:
             base['free_requests_used'] = int(session.get('free_requests_used') or 0)
             base['subscribe_url'] = '/subscribe'
