@@ -252,6 +252,10 @@ def register_freemium(
     stripe_webhook_secret = (
         stripe_webhook_secret or os.environ.get('STRIPE_WEBHOOK_SECRET', '')
     )
+    usage_hmac_key = (
+        os.environ.get('FRESHSKY_USAGE_HMAC_KEY', '').strip()
+        or stripe_secret_key
+    )
     google_auth_enabled = bool(google_client_id and google_client_secret)
     stripe_enabled = bool(stripe_secret_key)
     env_enabled = os.environ.get('FRESHSKY_SUBSCRIPTIONS_ENABLED', '').lower()
@@ -373,7 +377,7 @@ def register_freemium(
                 return None
             try:
                 allowed, usage = _consume_paid_allowance(
-                    email, entitled_tier, stripe_secret_key
+                    email, entitled_tier, usage_hmac_key
                 )
             except Exception as exc:
                 logger.error('Paid usage meter failed closed: %s', exc)
