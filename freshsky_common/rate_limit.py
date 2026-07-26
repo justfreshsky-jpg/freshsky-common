@@ -83,7 +83,7 @@ def register_global_rate_limits(
     app: Flask,
     *,
     ip_per_hour: int = 60,
-    user_per_day: int = 200,
+    user_per_day: int = 500,
     skip_paths: tuple = ("/health", "/healthz", "/api/user-status",
                           "/freemium.js", "/freshsky-access-v052.js",
                           "/api/affiliates", "/auth/google",
@@ -94,8 +94,10 @@ def register_global_rate_limits(
     """Wire global per-IP and per-user rate limits on POST endpoints.
 
     Defaults give every IP up to ``ip_per_hour`` POSTs/hour and every signed-in
-    Google user up to ``user_per_day`` POSTs/day. The owner email bypasses
-    both. Health, status, and OAuth routes are excluded from limiting.
+    Google user up to ``user_per_day`` POSTs/day. No account bypasses abuse
+    protection. ``owner_email`` is retained as an ignored compatibility
+    keyword so existing app registrations do not fail during migration.
+    Health, status, and OAuth routes are excluded from limiting.
 
     The limits are enforced *before* the freemium gate / view runs, so an
     abusive IP burning the IP-hour budget never reaches the LLM call site.
@@ -104,7 +106,7 @@ def register_global_rate_limits(
     user_limiter = RateLimiter(
         max_requests=user_per_day, window_seconds=86400, key_fn=_user_email_key,
     )
-    owner_email = (owner_email or "").strip().lower()
+    _ = owner_email  # Deprecated compatibility keyword; never a bypass.
 
     @app.before_request
     def _global_rate_limit():
@@ -114,9 +116,6 @@ def register_global_rate_limits(
         for skip in skip_paths:
             if path == skip or path.startswith(skip + "/"):
                 return None
-        # Owner bypass
-        if owner_email and (session.get("user_email") or "").lower() == owner_email:
-            return None
         # Per-IP first (short window, fast cutoff against bots)
         ip_allowed, ip_retry_after = ip_limiter.check_with_retry_after()
         if not ip_allowed:

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "freshsky-common"
-version = "0.5.6"
-description = "Shared infrastructure (LLM chain, security, caching, rate limiting, metrics) for Fresh Sky LLC apps."
+version = "0.6.0"
+description = "Shared runtime, workspace entitlements, bounded agents, security, and LLM infrastructure for Fresh Sky LLC apps."
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "Fresh Sky LLC", email = "admin@freshskyllc.com"}]

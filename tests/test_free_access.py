@@ -2,6 +2,7 @@ import sys
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
+import pytest
 from flask import Flask
 
 from freshsky_common.freemium import register_freemium
@@ -105,10 +106,13 @@ def test_user_status_reports_full_free_access():
     assert payload["free_access"] is True
     assert payload["full_access"] is True
     assert payload["free_preview_limit"] is None
-    assert "donate_url" not in payload
     assert "sponsor_url" not in payload
     assert "pricing_url" not in payload
     assert "is_pro" not in payload
+    assert payload["plan_tier"] == "guest"
+    assert payload["usage_unit_limits"]["rolling_30_day_previews"] == 3
+    assert payload["server_saved_projects"] is False
+    assert len(payload["workspace_ids"]) == 5
 
 
 def test_versioned_access_bundle_replaces_stable_script_path():
@@ -215,8 +219,8 @@ def test_higher_portfolio_plan_unlocks_lower_tier_app(monkeypatch):
 
     assert response.get_json()["full_access"] is True
     assert response.get_json()["subscription_tier"] == "plus"
-    assert response.get_json()["paid_daily_limit"] == 75
-    assert response.get_json()["paid_monthly_limit"] == 900
+    assert response.get_json()["paid_daily_limit"] == 60
+    assert response.get_json()["paid_monthly_limit"] == 300
     assert subscription_list_args["expand"] == ["data.items.data.price"]
 
 
@@ -224,12 +228,12 @@ def test_paid_plan_usage_limit_returns_429(monkeypatch):
     monkeypatch.setenv("FRESHSKY_ENFORCE_PAID_LIMITS", "true")
     monkeypatch.setattr(
         "freshsky_common.freemium._consume_paid_allowance",
-        lambda email, tier, key: (
+        lambda email, tier, key, **kwargs: (
             False,
             {
-                "daily": 30,
-                "monthly": 300,
-                "daily_used": 30,
+                "daily": 20,
+                "monthly": 100,
+                "daily_used": 20,
                 "monthly_used": 87,
             },
         ),
@@ -259,7 +263,183 @@ def test_paid_plan_usage_limit_returns_429(monkeypatch):
 
     assert response.status_code == 429
     assert response.get_json()["code"] == "plan_usage_limit_reached"
-    assert response.get_json()["daily_limit"] == 30
+    assert response.get_json()["daily_limit"] == 20
+
+
+def test_gate_reserves_weighted_workflow_units(monkeypatch):
+    captured = {}
+
+    def consume(email, tier, key, **kwargs):
+        captured.update(
+            email=email,
+            tier=tier,
+            key=key,
+            **kwargs,
+        )
+        return True, {
+            "daily": 60,
+            "monthly": 300,
+            "daily_used": 5,
+            "monthly_used": 5,
+            "required_units": 5,
+            "quota_unit": "usage_unit",
+        }
+
+    monkeypatch.setenv("FRESHSKY_ENFORCE_PAID_LIMITS", "true")
+    monkeypatch.setattr(
+        "freshsky_common.freemium._consume_paid_allowance",
+        consume,
+    )
+    app = Flask(__name__)
+    app.secret_key = "test"
+    check = register_freemium(
+        app,
+        stripe_secret_key="sk_test_subscription",
+        subscriptions_enabled=True,
+        subscription_tier="plus",
+        subscription_price_id="price_plus_monthly",
+        subscription_amount_cents=1999,
+        free_request_limit=3,
+        workspace_id="education",
+    )
+
+    @app.post("/api/work")
+    def work():
+        return check(workflow_class="standard_agent") or {"ok": True}
+
+    client = app.test_client()
+    with client.session_transaction() as state:
+        state["user_email"] = "person@example.com"
+        state["subscription_tier"] = "plus"
+        state["subscription_checked_at"] = 9999999999
+
+    assert client.post("/api/work").status_code == 200
+    assert captured["usage_units"] == 5
+    assert captured["workflow_class"] == "standard_agent"
+    assert captured["workspace_id"] == "education"
+
+
+def test_workspace_policy_does_not_treat_plus_as_civic_access(monkeypatch):
+    plus_item = SimpleNamespace(
+        price=SimpleNamespace(id="price_plus_monthly", product="prod_plus")
+    )
+    active_subscription = SimpleNamespace(
+        status="active",
+        metadata={},
+        items=SimpleNamespace(data=[plus_item]),
+    )
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        Customer=SimpleNamespace(
+            list=lambda **kwargs: SimpleNamespace(
+                data=[SimpleNamespace(id="cus_portfolio")]
+            )
+        ),
+        Subscription=SimpleNamespace(
+            list=lambda **kwargs: SimpleNamespace(data=[active_subscription])
+        ),
+        Product=SimpleNamespace(
+            retrieve=lambda _product_id: SimpleNamespace(
+                name="FreshSky Plus",
+                metadata={},
+            )
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        subscriptions_enabled=True,
+        subscription_tier="civic",
+        subscription_price_id="price_civic_monthly",
+        subscription_amount_cents=1499,
+        free_request_limit=3,
+        workspace_id="civic",
+    )
+    client = app.test_client()
+    with client.session_transaction() as state:
+        state["user_email"] = "person@example.com"
+
+    payload = client.get("/api/user-status").get_json()
+
+    assert payload["full_access"] is False
+    assert payload["workspace_access"] is True  # Guest preview access remains.
+    assert payload["workspace_full_access"] is False
+    assert payload["plan_tier"] == "guest"
+
+
+def test_focus_workspace_is_restored_from_verified_subscription_metadata(
+    monkeypatch,
+):
+    focus_item = SimpleNamespace(
+        price=SimpleNamespace(
+            id="price_focus_monthly",
+            product=SimpleNamespace(
+                name="FreshSky Focus",
+                metadata={"freshsky_tier": "focus"},
+            ),
+        )
+    )
+    active_subscription = SimpleNamespace(
+        status="active",
+        metadata={"workspace_id": "education"},
+        items=SimpleNamespace(data=[focus_item]),
+    )
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        Customer=SimpleNamespace(
+            list=lambda **kwargs: SimpleNamespace(
+                data=[SimpleNamespace(id="cus_focus")]
+            )
+        ),
+        Subscription=SimpleNamespace(
+            list=lambda **kwargs: SimpleNamespace(data=[active_subscription])
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+        free_request_limit=3,
+        workspace_id="education",
+    )
+    client = app.test_client()
+    with client.session_transaction() as state:
+        state["user_email"] = "person@example.com"
+
+    payload = client.get("/api/user-status").get_json()
+
+    assert payload["full_access"] is True
+    assert payload["plan_tier"] == "focus"
+    assert payload["selected_workspace"] == "education"
+
+
+def test_verified_owner_status_is_finite_and_workspace_complete():
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        subscriptions_enabled=True,
+        subscription_tier="civic",
+        subscription_price_id="price_civic_monthly",
+        subscription_amount_cents=1499,
+        free_request_limit=3,
+        workspace_id="civic",
+    )
+    client = app.test_client()
+    with client.session_transaction() as state:
+        state["user_email"] = "admin@freshskyllc.com"
+        state["user_email_verified"] = True
+
+    payload = client.get("/api/user-status").get_json()
+
+    assert payload["plan_tier"] == "owner"
+    assert payload["verified_owner"] is True
+    assert payload["full_access"] is True
+    assert payload["paid_daily_limit"] == 500
+    assert payload["paid_monthly_limit"] == 2000
+    assert payload["monthly_provider_cost_cap_usd"] == "5.00"
+    assert len(payload["workspace_ids"]) == 5
 
 
 def test_subapp_paid_usage_uses_signed_central_meter(monkeypatch):
@@ -299,6 +479,42 @@ def test_subapp_paid_usage_uses_signed_central_meter(monkeypatch):
     assert captured["headers"]["X-FreshSky-Usage-Signature"].startswith("v1=")
 
 
+def test_weighted_usage_fails_closed_against_legacy_central_meter(monkeypatch):
+    class LegacyMeterResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "allowed": True,
+                "usage": {
+                    "daily": 60,
+                    "monthly": 300,
+                    "daily_used": 1,
+                    "monthly_used": 1,
+                },
+            }
+
+    monkeypatch.setenv("K_SERVICE", "workspace-service")
+    monkeypatch.setattr(
+        "requests.post",
+        lambda *args, **kwargs: LegacyMeterResponse(),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="does not support weighted reservations",
+    ):
+        freemium._consume_paid_allowance(
+            "person@example.com",
+            "plus",
+            "usage-secret",
+            usage_units=5,
+            workflow_class="standard_agent",
+            workspace_id="education",
+        )
+
+
 def test_stripe_secret_enables_billing_without_retired_price_ids(monkeypatch):
     created = {}
 
@@ -310,7 +526,7 @@ def test_stripe_secret_enables_billing_without_retired_price_ids(monkeypatch):
         api_key=None,
         Customer=SimpleNamespace(
             list=lambda **kwargs: SimpleNamespace(
-                data=[SimpleNamespace(id="cus_supporter")]
+                data=[SimpleNamespace(id="cus_customer")]
             )
         ),
         billing_portal=SimpleNamespace(
@@ -320,12 +536,12 @@ def test_stripe_secret_enables_billing_without_retired_price_ids(monkeypatch):
     monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
 
     app = make_app(
-        stripe_secret_key="sk_test_donations",
+        stripe_secret_key="sk_test_billing",
         primary_url="https://www.freshskyai.com",
     )
     client = app.test_client()
     with client.session_transaction() as session:
-        session["user_email"] = "supporter@example.com"
+        session["user_email"] = "customer@example.com"
 
     status = client.get("/api/user-status").get_json()
     response = client.get("/billing")
@@ -334,7 +550,7 @@ def test_stripe_secret_enables_billing_without_retired_price_ids(monkeypatch):
     assert response.status_code == 302
     assert response.location == "https://billing.stripe.test/session"
     assert created == {
-        "customer": "cus_supporter",
+        "customer": "cus_customer",
         "return_url": "https://www.freshskyai.com",
     }
 
@@ -357,7 +573,7 @@ def test_civic_host_has_the_same_full_access():
 def test_civic_plan_sits_between_focus_and_plus():
     assert freemium.PLAN_RANK["focus"] < freemium.PLAN_RANK["civic"]
     assert freemium.PLAN_RANK["civic"] < freemium.PLAN_RANK["plus"]
-    assert freemium.PLAN_LIMITS["civic"] == {"daily": 75, "monthly": 900}
+    assert freemium.PLAN_LIMITS["civic"] == {"daily": 40, "monthly": 200}
 
 
 def test_optional_public_routes_are_disabled_by_default():
@@ -391,3 +607,31 @@ def test_google_login_uses_fixed_callback_and_nonce():
     ]
     assert query["nonce"][0]
     assert query["state"][0]
+
+
+def test_google_login_can_use_a_separate_auth_broker_callback_base():
+    app = make_app(
+        google_client_id="client.apps.googleusercontent.com",
+        google_client_secret="secret",
+        primary_url="https://workspace.freshskyai.com",
+        auth_broker_url="https://auth.freshskyai.com",
+    )
+
+    response = app.test_client().get("/auth/google")
+    query = parse_qs(urlparse(response.location).query)
+    status = app.test_client().get("/api/user-status").get_json()
+
+    assert query["redirect_uri"] == [
+        "https://auth.freshskyai.com/auth/google/callback"
+    ]
+    assert status["auth_broker_enabled"] is True
+
+
+def test_auth_broker_url_rejects_non_https_remote_hosts():
+    with pytest.raises(ValueError, match="must be HTTPS"):
+        make_app(
+            google_client_id="client.apps.googleusercontent.com",
+            google_client_secret="secret",
+            primary_url="https://workspace.freshskyai.com",
+            auth_broker_url="http://auth.example.com",
+        )
