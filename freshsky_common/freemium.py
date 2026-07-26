@@ -948,7 +948,7 @@ def register_freemium(
     # their own static/ directory.
     import importlib.resources as _ir
 
-    _access_bundle_path = '/freshsky-access-v060.js'
+    _access_bundle_path = '/freshsky-access-v061.js'
 
     def _freemium_js_response():
         try:
@@ -959,7 +959,7 @@ def register_freemium(
         resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
         return resp
 
-    app.add_url_rule(_access_bundle_path, 'freshsky_access_bundle_v060', _freemium_js_response)
+    app.add_url_rule(_access_bundle_path, 'freshsky_access_bundle_v061', _freemium_js_response)
 
     @app.route('/freemium.js')
     def freemium_js():

@@ -128,10 +128,10 @@ def test_versioned_access_bundle_replaces_stable_script_path():
     client = app.test_client()
     page = client.get("/")
     assert page.status_code == 200
-    assert 'src="/freshsky-access-v060.js"' in page.get_data(as_text=True)
+    assert 'src="/freshsky-access-v061.js"' in page.get_data(as_text=True)
     assert 'src="/freemium.js"' not in page.get_data(as_text=True)
 
-    bundle = client.get("/freshsky-access-v060.js")
+    bundle = client.get("/freshsky-access-v061.js")
     assert bundle.status_code == 200
     bundle_text = bundle.get_data(as_text=True)
     assert "installVisualSystem" in bundle_text
@@ -142,6 +142,8 @@ def test_versioned_access_bundle_replaces_stable_script_path():
     )
     assert "bar.getBoundingClientRect().height" in bundle_text
     assert "Math.max(54, measuredHeight)" in bundle_text
+    assert "new ResizeObserver" in bundle_text
+    assert "window.__freemiumBarResizeObserver.observe(bar)" in bundle_text
     assert bundle.headers["Cache-Control"] == "public, max-age=31536000, immutable"
 
     compatibility = client.get("/freemium.js")
@@ -155,8 +157,8 @@ def test_versioned_access_bundle_is_injected_when_template_has_no_script():
 
     page = app.test_client().get("/")
     body = page.get_data(as_text=True)
-    assert body.count('src="/freshsky-access-v060.js"') == 1
-    assert body.index("<main>") < body.index('src="/freshsky-access-v060.js"')
+    assert body.count('src="/freshsky-access-v061.js"') == 1
+    assert body.index("<main>") < body.index('src="/freshsky-access-v061.js"')
 
 
 def test_optional_global_post_gate_counts_three_previews():

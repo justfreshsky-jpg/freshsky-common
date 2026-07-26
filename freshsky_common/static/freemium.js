@@ -59,6 +59,26 @@
     document.body.style.paddingTop = Math.max(54, measuredHeight) + 'px';
   }
 
+  function watchBarOffset(bar) {
+    syncBarOffset(bar);
+    if (window.ResizeObserver) {
+      if (!window.__freemiumBarResizeObserver) {
+        window.__freemiumBarResizeObserver = new ResizeObserver(function(entries) {
+          entries.forEach(function(entry) {
+            if (entry.target && entry.target.id === 'freemium-bar') {
+              syncBarOffset(entry.target);
+            }
+          });
+        });
+      }
+      window.__freemiumBarResizeObserver.disconnect();
+      window.__freemiumBarResizeObserver.observe(bar);
+    } else {
+      window.setTimeout(function() { syncBarOffset(bar); }, 50);
+      window.setTimeout(function() { syncBarOffset(bar); }, 250);
+    }
+  }
+
   function renderBar() {
     var bar = document.getElementById('freemium-bar');
     if (!bar) {
@@ -100,7 +120,7 @@
           'target="_blank" rel="noopener">Fresh Sky AI</a>' +
         '<div class="fs-access-actions">' + user + access + action + account + '</div>' +
       '</div>';
-    syncBarOffset(bar);
+    watchBarOffset(bar);
     if (window.requestAnimationFrame) {
       window.requestAnimationFrame(function() { syncBarOffset(bar); });
     }
