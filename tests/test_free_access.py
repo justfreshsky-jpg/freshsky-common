@@ -57,7 +57,11 @@ def test_monthly_subscription_checkout_is_opt_in_and_server_priced(monkeypatch):
         free_request_limit=3,
     )
 
-    response = app.test_client().get("/subscribe")
+    client = app.test_client()
+    with client.session_transaction() as user_session:
+        user_session["user_email"] = "person@example.com"
+        user_session["user_email_verified"] = True
+    response = client.get("/subscribe")
 
     assert response.status_code == 303
     assert response.location == "https://checkout.stripe.test/monthly"
@@ -67,9 +71,14 @@ def test_monthly_subscription_checkout_is_opt_in_and_server_priced(monkeypatch):
     ]
     assert created["allow_promotion_codes"] is True
     assert created["metadata"] == {"app_host": "foia.example", "tier": "focus"}
+    assert created["customer_email"] == "person@example.com"
+    assert created["idempotency_key"].startswith(
+        "freshsky-subscription-v1-"
+    )
+    assert "person@example.com" not in created["idempotency_key"]
 
 
-def test_verified_checkout_creates_email_session(monkeypatch):
+def test_verified_checkout_preserves_matching_oauth_session(monkeypatch):
     checkout = SimpleNamespace(
         status="complete",
         mode="subscription",
@@ -94,6 +103,9 @@ def test_verified_checkout_creates_email_session(monkeypatch):
         free_request_limit=3,
     )
     client = app.test_client()
+    with client.session_transaction() as user_session:
+        user_session["user_email"] = "person@example.com"
+        user_session["user_email_verified"] = True
 
     response = client.get("/subscription/success?session_id=cs_test_123")
 
@@ -101,7 +113,52 @@ def test_verified_checkout_creates_email_session(monkeypatch):
     assert response.location == "https://foia.example/?checkout=success"
     with client.session_transaction() as user_session:
         assert user_session["user_email"] == "person@example.com"
+        assert user_session["user_email_verified"] is True
         assert user_session["subscription_tier"] == "focus"
+
+
+def test_checkout_success_link_cannot_create_or_replace_identity(monkeypatch):
+    checkout = SimpleNamespace(
+        status="complete",
+        mode="subscription",
+        subscription="sub_123",
+        metadata={"app_host": "foia.example", "tier": "focus"},
+        customer_details=SimpleNamespace(email="buyer@example.com"),
+    )
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        checkout=SimpleNamespace(
+            Session=SimpleNamespace(retrieve=lambda _session_id: checkout)
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        google_client_id="google-client",
+        google_client_secret="google-secret",
+        primary_url="https://foia.example",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+        free_request_limit=3,
+    )
+    client = app.test_client()
+    with client.session_transaction() as user_session:
+        user_session["user_email"] = "other@example.com"
+        user_session["user_email_verified"] = True
+
+    response = client.get(
+        "/subscription/success?session_id=cs_test_shared",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.location.startswith("/auth/google?")
+    with client.session_transaction() as user_session:
+        assert user_session["user_email"] == "other@example.com"
+        assert user_session["user_email_verified"] is True
+        assert "subscription_tier" not in user_session
 
 
 def test_user_status_reports_full_free_access():
@@ -196,6 +253,36 @@ def test_optional_global_post_gate_counts_three_previews():
     assert blocked.get_json()["price_cents"] == 2999
 
 
+def test_guest_previews_use_a_true_rolling_thirty_day_window(monkeypatch):
+    current = [1_800_000_000.0]
+    monkeypatch.setattr(freemium.time, "time", lambda: current[0])
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        subscriptions_enabled=True,
+        subscription_tier="advanced",
+        subscription_price_id="price_advanced_monthly",
+        subscription_amount_cents=2999,
+        free_request_limit=3,
+        gate_all_post=True,
+    )
+
+    @app.post("/api/work")
+    def work():
+        return {"ok": True}
+
+    client = app.test_client()
+    assert client.post("/api/work").status_code == 200
+    current[0] += 29 * 24 * 60 * 60
+    assert client.post("/api/work").status_code == 200
+    current[0] += 12 * 60 * 60
+    assert client.post("/api/work").status_code == 200
+    assert client.post("/api/work").status_code == 402
+
+    current[0] += (12 * 60 * 60) + 1
+    assert client.post("/api/work").status_code == 200
+    assert client.post("/api/work").status_code == 402
+
+
 def test_higher_portfolio_plan_unlocks_lower_tier_app(monkeypatch):
     subscription_list_args = {}
     plus_item = SimpleNamespace(
@@ -242,6 +329,7 @@ def test_higher_portfolio_plan_unlocks_lower_tier_app(monkeypatch):
     client = app.test_client()
     with client.session_transaction() as user_session:
         user_session["user_email"] = "person@example.com"
+        user_session["user_email_verified"] = True
 
     response = client.get("/api/user-status")
 
@@ -289,6 +377,7 @@ def test_paid_plan_usage_limit_returns_429(monkeypatch):
     limited_client = limited_app.test_client()
     with limited_client.session_transaction() as user_session:
         user_session["user_email"] = "person@example.com"
+        user_session["user_email_verified"] = True
         user_session["subscription_tier"] = "focus"
         user_session["subscription_checked_at"] = 9999999999
     response = limited_client.post("/api/work")
@@ -342,6 +431,7 @@ def test_gate_reserves_weighted_workflow_units(monkeypatch):
     client = app.test_client()
     with client.session_transaction() as state:
         state["user_email"] = "person@example.com"
+        state["user_email_verified"] = True
         state["subscription_tier"] = "plus"
         state["subscription_checked_at"] = 9999999999
 
@@ -390,6 +480,7 @@ def test_workspace_policy_does_not_treat_plus_as_civic_access(monkeypatch):
     client = app.test_client()
     with client.session_transaction() as state:
         state["user_email"] = "person@example.com"
+        state["user_email_verified"] = True
 
     payload = client.get("/api/user-status").get_json()
 
@@ -440,6 +531,7 @@ def test_focus_workspace_is_restored_from_verified_subscription_metadata(
     client = app.test_client()
     with client.session_transaction() as state:
         state["user_email"] = "person@example.com"
+        state["user_email_verified"] = True
 
     payload = client.get("/api/user-status").get_json()
 
@@ -549,6 +641,7 @@ def test_managed_app_never_reuses_stripe_secret_for_usage_signing(monkeypatch):
         from flask import session
 
         session["user_email"] = "person@example.com"
+        session["user_email_verified"] = True
         session["subscription_tier"] = "advanced"
         session["subscription_checked_at"] = freemium.time.time()
         response, status = gate(workflow_class="preview")
@@ -721,6 +814,7 @@ def test_stripe_secret_enables_billing_without_retired_price_ids(monkeypatch):
     client = app.test_client()
     with client.session_transaction() as session:
         session["user_email"] = "customer@example.com"
+        session["user_email_verified"] = True
 
     status = client.get("/api/user-status").get_json()
     response = client.get("/billing")
@@ -732,6 +826,33 @@ def test_stripe_secret_enables_billing_without_retired_price_ids(monkeypatch):
         "customer": "cus_customer",
         "return_url": "https://www.freshskyai.com",
     }
+
+
+def test_billing_rejects_unverified_checkout_identity(monkeypatch):
+    customer_calls = []
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        Customer=SimpleNamespace(
+            list=lambda **kwargs: customer_calls.append(kwargs)
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_billing",
+        google_client_id="google-client",
+        google_client_secret="google-secret",
+        primary_url="https://www.freshskyai.com",
+    )
+    client = app.test_client()
+    with client.session_transaction() as state:
+        state["user_email"] = "legacy@example.com"
+        state["user_email_verified"] = False
+
+    response = client.get("/billing", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.location.startswith("/auth/google?")
+    assert customer_calls == []
 
 
 def test_civic_host_has_the_same_full_access():

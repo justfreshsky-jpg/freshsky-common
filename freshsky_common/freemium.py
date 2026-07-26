@@ -122,7 +122,10 @@ def _usage_firestore_client():
         from google.cloud import firestore
         _USAGE_FIRESTORE_CLIENT = firestore.Client()
     except Exception as exc:
-        logger.warning('Paid usage meter unavailable: %s', exc)
+        logger.warning(
+            'Paid usage meter unavailable; error_type=%s',
+            type(exc).__name__,
+        )
     return _USAGE_FIRESTORE_CLIENT
 
 
@@ -477,6 +480,8 @@ def register_freemium(
         )
 
     def _session_subscription_tier() -> str:
+        if session.get('user_email_verified') is not True:
+            return ''
         tier = str(session.get('subscription_tier') or '').lower()
         if (
             subscription_ready
@@ -493,7 +498,11 @@ def register_freemium(
         an API lookup on every generation request while keeping cancellations
         reasonably prompt.
         """
-        if not subscription_ready or not email:
+        if (
+            not subscription_ready
+            or not email
+            or session.get('user_email_verified') is not True
+        ):
             return ''
         try:
             import stripe
@@ -603,7 +612,10 @@ def register_freemium(
                     session['focus_workspace'] = best_focus_workspace
                 return best_tier
         except Exception as exc:
-            logger.warning('Subscription verification unavailable: %s', exc)
+            logger.warning(
+                'Subscription verification unavailable; error_type=%s',
+                type(exc).__name__,
+            )
         return ''
 
     def check(*, workflow_class: str = 'preview') -> Optional[tuple]:
@@ -622,7 +634,12 @@ def register_freemium(
         entitled_tier = (
             'owner'
             if _verified_owner()
-            else _session_subscription_tier() or _stripe_subscription_tier(email)
+            else (
+                _session_subscription_tier()
+                or _stripe_subscription_tier(email)
+                if session.get('user_email_verified') is True
+                else ''
+            )
         )
         if entitled_tier:
             enforce_usage = (
@@ -642,7 +659,10 @@ def register_freemium(
                     workspace_id=workspace_id,
                 )
             except Exception as exc:
-                logger.error('Paid usage meter failed closed: %s', exc)
+                logger.error(
+                    'Paid usage meter failed closed; error_type=%s',
+                    type(exc).__name__,
+                )
                 return jsonify(
                     error='Usage verification is temporarily unavailable.',
                     code='usage_meter_unavailable',
@@ -672,19 +692,42 @@ def register_freemium(
             ), 402
         if free_request_limit is None:
             return None
-        preview_window_seconds = 30 * 24 * 60 * 60
-        preview_window_started_at = float(
-            session.get('free_preview_window_started_at') or 0
-        )
-        if (
-            preview_window_started_at <= 0
-            or preview_window_started_at <= time.time() - preview_window_seconds
-        ):
-            session['free_requests_used'] = 0
-            session['free_preview_window_started_at'] = time.time()
-        used = max(0, int(session.get('free_requests_used') or 0))
+        now = time.time()
+        cutoff = now - (30 * 24 * 60 * 60)
+        raw_timestamps = session.get('free_preview_timestamps')
+        timestamps = []
+        if isinstance(raw_timestamps, list):
+            for raw_timestamp in raw_timestamps[:max(0, free_request_limit)]:
+                try:
+                    timestamp = float(raw_timestamp)
+                except (TypeError, ValueError):
+                    continue
+                if cutoff < timestamp <= now:
+                    timestamps.append(timestamp)
+        else:
+            # Preserve an existing bounded preview window during migration.
+            try:
+                started_at = float(
+                    session.get('free_preview_window_started_at') or 0
+                )
+                legacy_used = max(
+                    0,
+                    min(
+                        max(0, free_request_limit),
+                        int(session.get('free_requests_used') or 0),
+                    ),
+                )
+            except (TypeError, ValueError):
+                started_at = 0
+                legacy_used = 0
+            if cutoff < started_at <= now:
+                timestamps = [started_at] * legacy_used
+        used = len(timestamps)
         if used < max(0, free_request_limit):
-            session['free_requests_used'] = used + 1
+            timestamps.append(now)
+            session['free_preview_timestamps'] = timestamps
+            session['free_requests_used'] = len(timestamps)
+            session['free_preview_window_started_at'] = min(timestamps)
             return None
         return jsonify(
             error='A monthly plan is required for additional runs.',
@@ -772,7 +815,10 @@ def register_freemium(
             ):
                 raise ValueError('Google ID token nonce did not match')
         except Exception as exc:
-            logger.warning('OAuth callback error: %s', exc)
+            logger.warning(
+                'OAuth callback error; error_type=%s',
+                type(exc).__name__,
+            )
             return redirect(url_for('index'))
         email = (info.get('email') or '').lower()
         name = info.get('name', email.split('@')[0] if email else '')
@@ -798,6 +844,12 @@ def register_freemium(
     def freemium_subscribe():
         if not subscription_ready:
             return redirect(url_for('index'), code=302)
+        email = (session.get('user_email') or '').strip().lower()
+        if not email or session.get('user_email_verified') is not True:
+            return redirect(
+                url_for('freemium_google_login', next='/subscribe'),
+                code=302,
+            )
         try:
             import stripe
             stripe.api_key = stripe_secret_key
@@ -820,17 +872,28 @@ def register_freemium(
                         'tier': subscription_tier,
                     }
                 },
+                'customer_email': email,
             }
             if workspace_id:
                 args['metadata']['workspace_id'] = workspace_id
                 args['subscription_data']['metadata']['workspace_id'] = workspace_id
-            email = (session.get('user_email') or '').lower()
-            if email:
-                args['customer_email'] = email
+            window = int(time.time() // (15 * 60))
+            secret = str(app.secret_key or '').encode('utf-8')
+            digest = hmac.new(
+                secret,
+                f'freshsky-subscription-v1\0{email}\0{window}'.encode('utf-8'),
+                hashlib.sha256,
+            ).hexdigest()[:40]
+            args['idempotency_key'] = (
+                f'freshsky-subscription-v1-{digest}-{window}'
+            )
             checkout = stripe.checkout.Session.create(**args)
             return redirect(checkout.url, code=303)
         except Exception as exc:
-            logger.error('Stripe subscription checkout error: %s', exc)
+            logger.error(
+                'Stripe subscription checkout error; error_type=%s',
+                type(exc).__name__,
+            )
             return redirect(f'{primary_url}/?checkout=unavailable', code=302)
 
     @app.route('/subscribe/yearly')
@@ -866,19 +929,32 @@ def register_freemium(
             )
             if not verified:
                 raise ValueError('checkout did not match this application')
+            prior_email = (
+                session.get('user_email') or ''
+            ).strip().lower()
+            if (
+                session.get('user_email_verified') is not True
+                or not prior_email
+                or not hmac.compare_digest(prior_email, email)
+            ):
+                return redirect(
+                    url_for(
+                        'freemium_google_login',
+                        next='/billing',
+                    ),
+                    code=303,
+                )
             session.permanent = True
-            session['user_email'] = email
-            session.setdefault('user_name', email.split('@')[0])
-            # Checkout proves payment ownership, not Google identity.  The
-            # exact owner entitlement is granted only after verified OAuth.
-            session['user_email_verified'] = False
             session['subscription_tier'] = subscription_tier
             session['subscription_checked_at'] = time.time()
             if subscription_tier == 'focus' and workspace_id:
                 session['focus_workspace'] = focus_workspace or workspace_id
             return redirect(f'{primary_url}/?checkout=success', code=303)
         except Exception as exc:
-            logger.warning('Subscription checkout verification failed: %s', exc)
+            logger.warning(
+                'Subscription checkout verification failed; error_type=%s',
+                type(exc).__name__,
+            )
             return redirect(f'{primary_url}/?checkout=unverified', code=302)
 
     @app.route('/billing')
@@ -889,7 +965,10 @@ def register_freemium(
             }:
                 return redirect(url_for('index'))
             return redirect('https://www.freshskyai.com/billing', code=302)
-        if not session.get('user_email'):
+        if (
+            not session.get('user_email')
+            or session.get('user_email_verified') is not True
+        ):
             return redirect(url_for('freemium_google_login', next='/billing'))
         try:
             import stripe
@@ -903,7 +982,10 @@ def register_freemium(
             )
             return redirect(portal.url)
         except Exception as exc:
-            logger.error('Stripe portal error: %s', exc)
+            logger.error(
+                'Stripe portal error; error_type=%s',
+                type(exc).__name__,
+            )
             return redirect(url_for('index'))
 
     # ─── WEBHOOK ─────────────────────────────────────────────────
@@ -941,7 +1023,10 @@ def register_freemium(
                 _persist_email_capture(email, source)
                 return jsonify(ok=True), 200
             except Exception as exc:
-                logger.warning('email capture skipped: %s', exc)
+                logger.warning(
+                    'email capture skipped; error_type=%s',
+                    type(exc).__name__,
+                )
                 return jsonify(ok=False, error='temporarily unavailable'), 503
 
     # ─── FREEMIUM STATIC JS ──────────────────────────────────────
@@ -1006,12 +1091,13 @@ def register_freemium(
         from .entitlements import resolve_entitlement, user_status_fields
 
         email = (session.get('user_email') or '').lower()
+        email_verified = session.get('user_email_verified') is True
         community_request = _is_community_request()
         entitled_tier = ''
         owner_entitled = _verified_owner()
         if owner_entitled:
             entitled_tier = 'owner'
-        elif email and subscription_ready:
+        elif email and email_verified and subscription_ready:
             entitled_tier = (
                 _session_subscription_tier() or _stripe_subscription_tier(email)
             )
@@ -1025,7 +1111,7 @@ def register_freemium(
             entitled_tier or 'guest',
             selected_workspace=selected,
             email=email,
-            email_verified=session.get('user_email_verified') is True,
+            email_verified=email_verified,
         )
         workspace_access = (
             entitlement.can_access(workspace_id)
@@ -1038,7 +1124,7 @@ def register_freemium(
             and workspace_access
         )
         base = {
-            'logged_in': bool(email),
+            'logged_in': bool(email and email_verified),
             'google_auth_enabled': google_auth_enabled,
             'auth_broker_enabled': bool(auth_broker_url),
             'free_access': not subscription_ready or free_request_limit is None,
@@ -1062,7 +1148,7 @@ def register_freemium(
             'paid_monthly_limit': entitlement.monthly_units,
             'community_mode': community_request,
         }
-        if email:
+        if email and email_verified:
             base['email'] = email
             base['name'] = session.get('user_name', '')
             if subscription_ready:
