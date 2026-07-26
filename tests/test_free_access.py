@@ -1,4 +1,5 @@
 import sys
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
@@ -179,6 +180,7 @@ def test_higher_portfolio_plan_unlocks_lower_tier_app(monkeypatch):
     )
     active_subscription = SimpleNamespace(
         status="active",
+        current_period_end=1_800_000_000,
         items=SimpleNamespace(data=[plus_item]),
     )
     fake_stripe = SimpleNamespace(
@@ -221,6 +223,10 @@ def test_higher_portfolio_plan_unlocks_lower_tier_app(monkeypatch):
     assert response.get_json()["subscription_tier"] == "plus"
     assert response.get_json()["paid_daily_limit"] == 60
     assert response.get_json()["paid_monthly_limit"] == 300
+    assert response.get_json()["entitlement_expires_at"] == datetime.fromtimestamp(
+        1_800_000_000,
+        tz=timezone.utc,
+    ).isoformat()
     assert subscription_list_args["expand"] == ["data.items.data.price"]
 
 
@@ -439,6 +445,7 @@ def test_verified_owner_status_is_finite_and_workspace_complete():
     assert payload["paid_daily_limit"] == 500
     assert payload["paid_monthly_limit"] == 2000
     assert payload["monthly_provider_cost_cap_usd"] == "5.00"
+    assert payload["entitlement_expires_at"] is None
     assert len(payload["workspace_ids"]) == 5
 
 

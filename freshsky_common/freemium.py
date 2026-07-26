@@ -46,6 +46,7 @@ import logging
 import os
 import secrets
 import time
+from datetime import datetime, timezone
 from typing import Callable, Optional
 from urllib.parse import urlencode, urlparse
 
@@ -469,6 +470,7 @@ def register_freemium(
             customers = stripe.Customer.list(email=email, limit=10)
             best_tier = ''
             best_focus_workspace = ''
+            best_period_end = 0
             for customer in customers.data:
                 subscriptions = stripe.Subscription.list(
                     customer=customer.id,
@@ -543,7 +545,17 @@ def register_freemium(
                             and PLAN_RANK.get(tier, 0)
                             > PLAN_RANK.get(best_tier, 0)
                         ):
+                            period_end = (
+                                sub_item.get('current_period_end', 0)
+                                if isinstance(sub_item, dict)
+                                else getattr(sub_item, 'current_period_end', 0)
+                            ) or (
+                                item.get('current_period_end', 0)
+                                if isinstance(item, dict)
+                                else getattr(item, 'current_period_end', 0)
+                            )
                             best_tier = tier
+                            best_period_end = int(period_end or 0)
                             best_focus_workspace = (
                                 candidate_focus_workspace
                                 if tier == 'focus'
@@ -552,6 +564,10 @@ def register_freemium(
             if _tier_allows(best_tier, best_focus_workspace or None):
                 session['subscription_tier'] = best_tier
                 session['subscription_checked_at'] = time.time()
+                if best_period_end > 0:
+                    session['subscription_period_end'] = best_period_end
+                else:
+                    session.pop('subscription_period_end', None)
                 if best_tier == 'focus' and best_focus_workspace:
                     session['focus_workspace'] = best_focus_workspace
                 return best_tier
@@ -1004,6 +1020,15 @@ def register_freemium(
             'subscription_tier': display_tier or None,
             'required_subscription_tier': subscription_tier or None,
             'subscription_price_cents': subscription_amount_cents or None,
+            'entitlement_expires_at': (
+                datetime.fromtimestamp(
+                    float(session.get('subscription_period_end') or 0),
+                    tz=timezone.utc,
+                ).isoformat()
+                if entitled_tier not in {'', 'owner'}
+                and float(session.get('subscription_period_end') or 0) > 0
+                else None
+            ),
             'paid_daily_limit': entitlement.daily_units,
             'paid_monthly_limit': entitlement.monthly_units,
             'community_mode': community_request,
