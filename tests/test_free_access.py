@@ -510,6 +510,38 @@ def test_subapp_paid_usage_uses_signed_central_meter(monkeypatch):
     )
 
 
+def test_managed_app_never_reuses_stripe_secret_for_usage_signing(monkeypatch):
+    monkeypatch.setenv("K_SERVICE", "workspace-service")
+    monkeypatch.delenv("FRESHSKY_USAGE_HMAC_KEY", raising=False)
+    monkeypatch.setattr(
+        "requests.post",
+        lambda *args, **kwargs: pytest.fail(
+            "meter transport must not start without the dedicated key"
+        ),
+    )
+    app = Flask(__name__)
+    app.secret_key = "test"
+    gate = register_freemium(
+        app,
+        stripe_secret_key="sk_test_payment_only",
+        subscriptions_enabled=True,
+        subscription_tier="advanced",
+        subscription_price_id="price_advanced",
+        subscription_amount_cents=2999,
+        workspace_id="funding",
+    )
+    with app.test_request_context("/api/work"):
+        from flask import session
+
+        session["user_email"] = "person@example.com"
+        session["subscription_tier"] = "advanced"
+        session["subscription_checked_at"] = freemium.time.time()
+        response, status = gate(workflow_class="preview")
+
+    assert status == 503
+    assert response.get_json()["code"] == "usage_meter_unavailable"
+
+
 def test_subapp_usage_reservations_are_unique_within_one_second(monkeypatch):
     bodies = []
     headers = []

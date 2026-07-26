@@ -209,6 +209,10 @@ def _consume_paid_allowance(
     the original identifier so the hub can return the existing reservation
     without consuming the allowance twice.
     """
+    if not signing_key:
+        raise RuntimeError(
+            'dedicated usage-meter signing key is unavailable'
+        )
     identity = hmac.new(
         signing_key.encode('utf-8'),
         email.encode('utf-8'),
@@ -329,9 +333,17 @@ def register_freemium(
     stripe_webhook_secret = (
         stripe_webhook_secret or os.environ.get('STRIPE_WEBHOOK_SECRET', '')
     )
+    dedicated_usage_hmac_key = os.environ.get(
+        'FRESHSKY_USAGE_HMAC_KEY', ''
+    ).strip()
+    managed_runtime = bool(
+        os.environ.get('K_SERVICE')
+        or os.environ.get('FRESHSKY_ENV', '').strip().lower()
+        in {'prod', 'production'}
+    )
     usage_hmac_key = (
-        os.environ.get('FRESHSKY_USAGE_HMAC_KEY', '').strip()
-        or stripe_secret_key
+        dedicated_usage_hmac_key
+        or (stripe_secret_key if not managed_runtime else '')
     )
     workspace_id = (
         workspace_id or os.environ.get('FRESHSKY_WORKSPACE_ID', '')
