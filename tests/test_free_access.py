@@ -1,3 +1,6 @@
+import hashlib
+import hmac
+import json
 import sys
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -125,12 +128,20 @@ def test_versioned_access_bundle_replaces_stable_script_path():
     client = app.test_client()
     page = client.get("/")
     assert page.status_code == 200
-    assert 'src="/freshsky-access-v053.js"' in page.get_data(as_text=True)
+    assert 'src="/freshsky-access-v060.js"' in page.get_data(as_text=True)
     assert 'src="/freemium.js"' not in page.get_data(as_text=True)
 
-    bundle = client.get("/freshsky-access-v053.js")
+    bundle = client.get("/freshsky-access-v060.js")
     assert bundle.status_code == 200
-    assert "installVisualSystem" in bundle.get_data(as_text=True)
+    bundle_text = bundle.get_data(as_text=True)
+    assert "installVisualSystem" in bundle_text
+    inner_html_index = bundle_text.index("bar.innerHTML")
+    assert inner_html_index < bundle_text.index(
+        "syncBarOffset(bar);",
+        inner_html_index,
+    )
+    assert "bar.getBoundingClientRect().height" in bundle_text
+    assert "Math.max(54, measuredHeight)" in bundle_text
     assert bundle.headers["Cache-Control"] == "public, max-age=31536000, immutable"
 
     compatibility = client.get("/freemium.js")
@@ -144,8 +155,8 @@ def test_versioned_access_bundle_is_injected_when_template_has_no_script():
 
     page = app.test_client().get("/")
     body = page.get_data(as_text=True)
-    assert body.count('src="/freshsky-access-v053.js"') == 1
-    assert body.index("<main>") < body.index('src="/freshsky-access-v053.js"')
+    assert body.count('src="/freshsky-access-v060.js"') == 1
+    assert body.index("<main>") < body.index('src="/freshsky-access-v060.js"')
 
 
 def test_optional_global_post_gate_counts_three_previews():
@@ -484,6 +495,120 @@ def test_subapp_paid_usage_uses_signed_central_meter(monkeypatch):
     assert captured["url"].endswith("/internal/paid-usage/consume")
     assert b"person@example.com" not in captured["data"]
     assert captured["headers"]["X-FreshSky-Usage-Signature"].startswith("v1=")
+    body = json.loads(captured["data"])
+    reservation_id = body["reservation_id"]
+    assert len(reservation_id) == 32
+    assert set(reservation_id) <= set("0123456789abcdef")
+    timestamp = captured["headers"]["X-FreshSky-Usage-Timestamp"]
+    expected_signature = hmac.new(
+        b"sk_test_subscription",
+        timestamp.encode("ascii") + b"." + captured["data"],
+        hashlib.sha256,
+    ).hexdigest()
+    assert captured["headers"]["X-FreshSky-Usage-Signature"] == (
+        f"v1={expected_signature}"
+    )
+
+
+def test_subapp_usage_reservations_are_unique_within_one_second(monkeypatch):
+    bodies = []
+    headers = []
+
+    class MeterResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "allowed": True,
+                "usage": {
+                    "daily": 20,
+                    "monthly": 100,
+                    "daily_used": len(bodies),
+                    "monthly_used": len(bodies),
+                },
+            }
+
+    def post(_url, **kwargs):
+        bodies.append(json.loads(kwargs["data"]))
+        headers.append(kwargs["headers"])
+        return MeterResponse()
+
+    monkeypatch.setenv("K_SERVICE", "workspace-service")
+    monkeypatch.setattr("requests.post", post)
+    monkeypatch.setattr(freemium.time, "time", lambda: 1_900_000_000)
+
+    freemium._consume_paid_allowance(
+        "person@example.com",
+        "focus",
+        "usage-secret",
+    )
+    freemium._consume_paid_allowance(
+        "person@example.com",
+        "focus",
+        "usage-secret",
+    )
+
+    assert headers[0]["X-FreshSky-Usage-Timestamp"] == headers[1][
+        "X-FreshSky-Usage-Timestamp"
+    ]
+    assert bodies[0]["reservation_id"] != bodies[1]["reservation_id"]
+    assert headers[0]["X-FreshSky-Usage-Signature"] != headers[1][
+        "X-FreshSky-Usage-Signature"
+    ]
+
+
+def test_subapp_can_reuse_reservation_id_for_a_transport_retry(monkeypatch):
+    encoded_bodies = []
+
+    class MeterResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "allowed": True,
+                "usage": {
+                    "daily": 20,
+                    "monthly": 100,
+                    "daily_used": 1,
+                    "monthly_used": 1,
+                },
+            }
+
+    def post(_url, **kwargs):
+        encoded_bodies.append(kwargs["data"])
+        return MeterResponse()
+
+    monkeypatch.setenv("K_SERVICE", "workspace-service")
+    monkeypatch.setattr("requests.post", post)
+    reservation_id = "d" * 32
+
+    for _ in range(2):
+        freemium._consume_paid_allowance(
+            "person@example.com",
+            "focus",
+            "usage-secret",
+            reservation_id=reservation_id,
+        )
+
+    assert json.loads(encoded_bodies[0])["reservation_id"] == reservation_id
+    assert encoded_bodies[0] == encoded_bodies[1]
+
+
+def test_subapp_rejects_malformed_usage_reservation_id(monkeypatch):
+    monkeypatch.setenv("K_SERVICE", "workspace-service")
+
+    with pytest.raises(
+        ValueError,
+        match="reservation_id must be 32 lowercase hexadecimal characters",
+    ):
+        freemium._consume_paid_allowance(
+            "person@example.com",
+            "focus",
+            "usage-secret",
+            reservation_id="not-random",
+        )
 
 
 def test_weighted_usage_fails_closed_against_legacy_central_meter(monkeypatch):

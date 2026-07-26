@@ -200,8 +200,15 @@ def _consume_paid_allowance(
     usage_units: int = 1,
     workflow_class: str = 'preview',
     workspace_id: str = '',
+    reservation_id: str | None = None,
 ) -> tuple[bool, dict]:
-    """Consume usage units locally on the hub or via its signed central meter."""
+    """Consume usage units locally on the hub or via its signed central meter.
+
+    The subapp creates a fresh 128-bit reservation identifier for every logical
+    central-meter call.  A caller that retries the same logical call may pass
+    the original identifier so the hub can return the existing reservation
+    without consuming the allowance twice.
+    """
     identity = hmac.new(
         signing_key.encode('utf-8'),
         email.encode('utf-8'),
@@ -223,8 +230,19 @@ def _consume_paid_allowance(
     import json
     import requests
 
+    if reservation_id is None:
+        reservation_id = secrets.token_hex(16)
+    elif (
+        not isinstance(reservation_id, str)
+        or len(reservation_id) != 32
+        or any(character not in '0123456789abcdef' for character in reservation_id)
+    ):
+        raise ValueError(
+            'reservation_id must be 32 lowercase hexadecimal characters'
+        )
     body = {
         'identity': identity,
+        'reservation_id': reservation_id,
         'tier': tier,
         'usage_units': usage_units,
         'workflow_class': workflow_class,
@@ -918,7 +936,7 @@ def register_freemium(
     # their own static/ directory.
     import importlib.resources as _ir
 
-    _access_bundle_path = '/freshsky-access-v053.js'
+    _access_bundle_path = '/freshsky-access-v060.js'
 
     def _freemium_js_response():
         try:
@@ -929,7 +947,7 @@ def register_freemium(
         resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
         return resp
 
-    app.add_url_rule(_access_bundle_path, 'freshsky_access_bundle_v053', _freemium_js_response)
+    app.add_url_rule(_access_bundle_path, 'freshsky_access_bundle_v060', _freemium_js_response)
 
     @app.route('/freemium.js')
     def freemium_js():

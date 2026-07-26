@@ -54,6 +54,11 @@
       'Unlock · $' + dollars + '/month</a>';
   }
 
+  function syncBarOffset(bar) {
+    var measuredHeight = Math.ceil(bar.getBoundingClientRect().height || 0);
+    document.body.style.paddingTop = Math.max(54, measuredHeight) + 'px';
+  }
+
   function renderBar() {
     var bar = document.getElementById('freemium-bar');
     if (!bar) {
@@ -65,7 +70,6 @@
         'border-bottom:1px solid rgba(125,150,210,0.18);color:#cbd5e1;' +
         'font-family:Inter,system-ui,-apple-system,sans-serif;';
       document.body.prepend(bar);
-      document.body.style.paddingTop = '54px';
     }
 
     var host = (window.location && window.location.host || '').toLowerCase();
@@ -96,6 +100,17 @@
           'target="_blank" rel="noopener">Fresh Sky AI</a>' +
         '<div class="fs-access-actions">' + user + access + action + account + '</div>' +
       '</div>';
+    syncBarOffset(bar);
+    if (window.requestAnimationFrame) {
+      window.requestAnimationFrame(function() { syncBarOffset(bar); });
+    }
+    if (!window.__freemiumResizeBound) {
+      window.__freemiumResizeBound = true;
+      window.addEventListener('resize', function() {
+        var currentBar = document.getElementById('freemium-bar');
+        if (currentBar) syncBarOffset(currentBar);
+      });
+    }
   }
 
   window.handleFreemiumResponse = function(response, outputElement) {
