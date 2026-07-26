@@ -44,6 +44,7 @@ import hashlib
 import hmac
 import logging
 import os
+import re
 import secrets
 import time
 from datetime import datetime, timezone
@@ -983,15 +984,13 @@ def register_freemium(
         body = response.get_data(as_text=True)
         if _access_bundle_path in body:
             return response
-        for quote in ('"', "'"):
-            body = body.replace(
-                f'src={quote}/freemium.js{quote}',
-                f'src={quote}{_access_bundle_path}{quote}',
-            )
-            body = body.replace(
-                f'src={quote}/freemium.js?v=20260723{quote}',
-                f'src={quote}{_access_bundle_path}{quote}',
-            )
+        body = re.sub(
+            r"""src=(["'])/freemium\.js(?:\?[^"']*)?\1""",
+            lambda match: (
+                f"src={match.group(1)}{_access_bundle_path}{match.group(1)}"
+            ),
+            body,
+        )
         if _access_bundle_path not in body and '</body>' in body:
             body = body.replace(
                 '</body>',

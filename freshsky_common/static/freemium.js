@@ -17,6 +17,10 @@
     link.id = 'freshsky-visual-system';
     link.rel = 'stylesheet';
     link.href = '/freshsky.css';
+    link.addEventListener('load', function() {
+      var currentBar = document.getElementById('freemium-bar');
+      if (currentBar) syncBarOffset(currentBar);
+    });
     document.head.appendChild(link);
   }
 
@@ -123,6 +127,9 @@
     watchBarOffset(bar);
     if (window.requestAnimationFrame) {
       window.requestAnimationFrame(function() { syncBarOffset(bar); });
+    }
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function() { syncBarOffset(bar); });
     }
     if (!window.__freemiumResizeBound) {
       window.__freemiumResizeBound = true;

@@ -144,11 +144,24 @@ def test_versioned_access_bundle_replaces_stable_script_path():
     assert "Math.max(54, measuredHeight)" in bundle_text
     assert "new ResizeObserver" in bundle_text
     assert "window.__freemiumBarResizeObserver.observe(bar)" in bundle_text
+    assert "link.addEventListener('load'" in bundle_text
     assert bundle.headers["Cache-Control"] == "public, max-age=31536000, immutable"
 
     compatibility = client.get("/freemium.js")
     assert compatibility.status_code == 200
     assert compatibility.headers["Cache-Control"] == "no-store, max-age=0"
+
+
+def test_versioned_access_bundle_replaces_any_stable_query_string():
+    app = make_app()
+    app.view_functions["index"] = lambda: (
+        '<html><body><script src="/freemium.js?v=20260726"></script></body></html>'
+    )
+
+    body = app.test_client().get("/").get_data(as_text=True)
+
+    assert 'src="/freshsky-access-v061.js"' in body
+    assert "/freemium.js?" not in body
 
 
 def test_versioned_access_bundle_is_injected_when_template_has_no_script():
