@@ -446,12 +446,16 @@ def register_freemium(
         or os.environ.get('FRESHSKY_ENV', '').strip().lower()
         in {'prod', 'production'}
     )
-    if managed_runtime and isinstance(
-        pending_checkout_store,
-        MemoryCheckoutStore,
+    if (
+        managed_runtime
+        and pending_checkout_store is not None
+        and not isinstance(
+            pending_checkout_store,
+            FirestoreCheckoutStore,
+        )
     ):
         raise ValueError(
-            'managed subscription checkout requires a durable store'
+            'managed subscription checkout requires FirestoreCheckoutStore'
         )
     usage_hmac_key = (
         dedicated_usage_hmac_key

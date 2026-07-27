@@ -685,12 +685,25 @@ def test_managed_checkout_fails_closed_without_pseudonym_key(monkeypatch):
     assert created == []
 
 
-def test_managed_runtime_rejects_process_local_checkout_store(monkeypatch):
+@pytest.mark.parametrize(
+    "store",
+    (
+        MemoryCheckoutStore(),
+        SimpleNamespace(
+            reserve=lambda *_args, **_kwargs: None,
+            attach_session=lambda *_args, **_kwargs: None,
+        ),
+    ),
+)
+def test_managed_runtime_rejects_non_firestore_checkout_store(
+    monkeypatch,
+    store,
+):
     monkeypatch.setenv("K_SERVICE", "foia")
 
     with pytest.raises(
         ValueError,
-        match="managed subscription checkout requires a durable store",
+        match="managed subscription checkout requires FirestoreCheckoutStore",
     ):
         make_app(
             stripe_secret_key="sk_test_subscription",
@@ -699,7 +712,7 @@ def test_managed_runtime_rejects_process_local_checkout_store(monkeypatch):
             subscription_tier="focus",
             subscription_price_id="price_focus_monthly",
             subscription_amount_cents=999,
-            pending_checkout_store=MemoryCheckoutStore(),
+            pending_checkout_store=store,
         )
 
 
