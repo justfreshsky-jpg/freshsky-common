@@ -2,6 +2,8 @@ import hashlib
 import hmac
 import json
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
@@ -11,6 +13,10 @@ from flask import Flask
 
 from freshsky_common.freemium import register_freemium
 from freshsky_common import freemium
+from freshsky_common.checkout_store import (
+    CheckoutStoreUnavailable,
+    MemoryCheckoutStore,
+)
 
 
 def make_app(**freemium_options):
@@ -40,10 +46,19 @@ def test_monthly_subscription_checkout_is_opt_in_and_server_priced(monkeypatch):
 
     def create_checkout(**kwargs):
         created.update(kwargs)
-        return SimpleNamespace(url="https://checkout.stripe.test/monthly")
+        return SimpleNamespace(
+            id="cs_test_monthly_123",
+            url="https://checkout.stripe.test/monthly",
+        )
 
     fake_stripe = SimpleNamespace(
         api_key=None,
+        Customer=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(data=[]),
+        ),
+        Subscription=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(data=[]),
+        ),
         checkout=SimpleNamespace(Session=SimpleNamespace(create=create_checkout)),
     )
     monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
@@ -70,12 +85,622 @@ def test_monthly_subscription_checkout_is_opt_in_and_server_priced(monkeypatch):
         {"price": "price_focus_monthly", "quantity": 1}
     ]
     assert created["allow_promotion_codes"] is True
-    assert created["metadata"] == {"app_host": "foia.example", "tier": "focus"}
+    assert created["metadata"]["app_host"] == "foia.example"
+    assert created["metadata"]["tier"] == "focus"
+    assert len(created["metadata"]["checkout_fingerprint"]) == 64
     assert created["customer_email"] == "person@example.com"
     assert created["idempotency_key"].startswith(
-        "freshsky-subscription-v1-"
+        "freshsky-subscription-v2-"
     )
     assert "person@example.com" not in created["idempotency_key"]
+    assert created["client_reference_id"] != "person@example.com"
+    assert len(created["client_reference_id"]) == 64
+    assert created["expires_at"] > 0
+
+
+def test_existing_freshsky_subscription_prevents_new_checkout(monkeypatch):
+    created = []
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        Customer=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(
+                data=[SimpleNamespace(id="cus_existing")]
+            ),
+        ),
+        Subscription=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(
+                data=[
+                    {
+                        "status": "active",
+                        "items": {
+                            "data": [
+                                {
+                                    "price": {
+                                        "id": "price_focus_monthly",
+                                        "product": {
+                                            "name": "FreshSky Focus",
+                                            "metadata": {},
+                                        },
+                                    }
+                                }
+                            ]
+                        },
+                    }
+                ]
+            ),
+        ),
+        checkout=SimpleNamespace(
+            Session=SimpleNamespace(
+                create=lambda **kwargs: created.append(kwargs),
+            )
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        primary_url="https://foia.example",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+    )
+    client = app.test_client()
+    with client.session_transaction() as user_session:
+        user_session["user_email"] = "person@example.com"
+        user_session["user_email_verified"] = True
+
+    response = client.get("/subscribe", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.location == "/billing"
+    assert created == []
+
+
+def test_other_freshsky_tier_product_also_blocks_duplicate(monkeypatch):
+    created = []
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        Customer=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(
+                data=[SimpleNamespace(id="cus_existing")]
+            ),
+        ),
+        Subscription=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(
+                data=[
+                    {
+                        "status": "active",
+                        "items": {
+                            "data": [
+                                {
+                                    "price": {
+                                        "id": "price_civic_elsewhere",
+                                        "product": {
+                                            "name": "FreshSky Civic",
+                                            "metadata": {
+                                                "freshsky_tier": "civic"
+                                            },
+                                        },
+                                    }
+                                }
+                            ]
+                        },
+                    }
+                ]
+            ),
+        ),
+        checkout=SimpleNamespace(
+            Session=SimpleNamespace(
+                create=lambda **kwargs: created.append(kwargs),
+            )
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        primary_url="https://foia.example",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+    )
+    client = app.test_client()
+    with client.session_transaction() as user_session:
+        user_session["user_email"] = "person@example.com"
+        user_session["user_email_verified"] = True
+
+    response = client.get("/subscribe", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.location == "/billing"
+    assert created == []
+
+
+@pytest.mark.parametrize(
+    "status",
+    ("trialing", "past_due", "unpaid", "incomplete", "paused"),
+)
+def test_nonterminal_freshsky_subscription_statuses_block_duplicates(
+    monkeypatch,
+    status,
+):
+    created = []
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        Customer=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(
+                data=[SimpleNamespace(id="cus_existing")]
+            ),
+        ),
+        Subscription=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(
+                data=[
+                    {
+                        "status": status,
+                        "items": {
+                            "data": [
+                                {
+                                    "price": {
+                                        "id": "price_focus_monthly",
+                                    }
+                                }
+                            ]
+                        },
+                    }
+                ]
+            ),
+        ),
+        checkout=SimpleNamespace(
+            Session=SimpleNamespace(
+                create=lambda **kwargs: created.append(kwargs),
+            )
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        primary_url="https://foia.example",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+    )
+    client = app.test_client()
+    with client.session_transaction() as user_session:
+        user_session["user_email"] = "person@example.com"
+        user_session["user_email_verified"] = True
+
+    response = client.get("/subscribe", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.location == "/billing"
+    assert created == []
+
+
+def test_subscription_precheck_failure_blocks_checkout(monkeypatch):
+    created = []
+
+    def unavailable(**_kwargs):
+        raise RuntimeError("upstream customer payload")
+
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        Customer=SimpleNamespace(list=unavailable),
+        Subscription=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(data=[]),
+        ),
+        checkout=SimpleNamespace(
+            Session=SimpleNamespace(
+                create=lambda **kwargs: created.append(kwargs),
+            )
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        primary_url="https://foia.example",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+    )
+    client = app.test_client()
+    with client.session_transaction() as user_session:
+        user_session["user_email"] = "person@example.com"
+        user_session["user_email_verified"] = True
+
+    response = client.get("/subscribe", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.location == (
+        "https://foia.example/?checkout=unavailable"
+    )
+    assert created == []
+
+
+def test_pending_checkout_retry_reuses_session_without_storing_url(monkeypatch):
+    created = []
+    sessions = {}
+
+    def create_checkout(**kwargs):
+        created.append(dict(kwargs))
+        checkout = SimpleNamespace(
+            id="cs_test_reusable_123",
+            url="https://checkout.stripe.test/reusable",
+            status="open",
+            client_reference_id=kwargs["client_reference_id"],
+            metadata=dict(kwargs["metadata"]),
+        )
+        sessions[checkout.id] = checkout
+        return checkout
+
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        Customer=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(data=[]),
+        ),
+        Subscription=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(data=[]),
+        ),
+        checkout=SimpleNamespace(
+            Session=SimpleNamespace(
+                create=create_checkout,
+                retrieve=lambda checkout_id: sessions[checkout_id],
+            )
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    store = MemoryCheckoutStore()
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        primary_url="https://foia.example",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+        pending_checkout_store=store,
+    )
+    client = app.test_client()
+    with client.session_transaction() as user_session:
+        user_session["user_email"] = "person@example.com"
+        user_session["user_email_verified"] = True
+
+    first = client.get("/subscribe", follow_redirects=False)
+    retry = client.get("/subscribe", follow_redirects=False)
+
+    assert first.status_code == retry.status_code == 303
+    assert first.location == retry.location == (
+        "https://checkout.stripe.test/reusable"
+    )
+    assert len(created) == 1
+    assert created[0]["idempotency_key"].startswith(
+        "freshsky-subscription-v2-"
+    )
+    assert "person@example.com" not in created[0]["idempotency_key"]
+
+
+def test_retry_after_session_binding_failure_uses_same_stripe_key(
+    monkeypatch,
+):
+    class FlakyAttachStore:
+        def __init__(self):
+            self.backend = MemoryCheckoutStore()
+            self.failures = 1
+
+        def reserve(self, *args, **kwargs):
+            return self.backend.reserve(*args, **kwargs)
+
+        def attach_session(self, reservation, checkout_session_id):
+            if self.failures:
+                self.failures -= 1
+                raise CheckoutStoreUnavailable("transient Firestore outage")
+            return self.backend.attach_session(
+                reservation,
+                checkout_session_id,
+            )
+
+    calls = []
+    sessions_by_key = {}
+
+    def create_checkout(**kwargs):
+        calls.append(dict(kwargs))
+        checkout = sessions_by_key.get(kwargs["idempotency_key"])
+        if checkout is None:
+            checkout = SimpleNamespace(
+                id="cs_test_recovered_123",
+                url="https://checkout.stripe.test/recovered",
+            )
+            sessions_by_key[kwargs["idempotency_key"]] = checkout
+        return checkout
+
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        Customer=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(data=[]),
+        ),
+        Subscription=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(data=[]),
+        ),
+        checkout=SimpleNamespace(
+            Session=SimpleNamespace(create=create_checkout),
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        primary_url="https://foia.example",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+        pending_checkout_store=FlakyAttachStore(),
+    )
+    client = app.test_client()
+    with client.session_transaction() as user_session:
+        user_session["user_email"] = "person@example.com"
+        user_session["user_email_verified"] = True
+
+    failed = client.get("/subscribe", follow_redirects=False)
+    recovered = client.get("/subscribe", follow_redirects=False)
+
+    assert failed.status_code == 302
+    assert failed.location == "https://foia.example/?checkout=unavailable"
+    assert recovered.status_code == 303
+    assert recovered.location == "https://checkout.stripe.test/recovered"
+    assert len(calls) == 2
+    assert len({call["idempotency_key"] for call in calls}) == 1
+    assert len(sessions_by_key) == 1
+
+
+def test_concurrent_checkout_retries_share_one_reservation_and_session(
+    monkeypatch,
+):
+    calls = []
+    sessions_by_key = {}
+    lock = threading.Lock()
+
+    def create_checkout(**kwargs):
+        with lock:
+            calls.append(dict(kwargs))
+            checkout = sessions_by_key.get(kwargs["idempotency_key"])
+            if checkout is None:
+                checkout = SimpleNamespace(
+                    id="cs_test_concurrent_123",
+                    url="https://checkout.stripe.test/concurrent",
+                    status="open",
+                    client_reference_id=kwargs["client_reference_id"],
+                    metadata=dict(kwargs["metadata"]),
+                )
+                sessions_by_key[kwargs["idempotency_key"]] = checkout
+            return checkout
+
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        Customer=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(data=[]),
+        ),
+        Subscription=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(data=[]),
+        ),
+        checkout=SimpleNamespace(
+            Session=SimpleNamespace(
+                create=create_checkout,
+                retrieve=lambda _checkout_id: next(
+                    iter(sessions_by_key.values())
+                ),
+            )
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        primary_url="https://foia.example",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+        pending_checkout_store=MemoryCheckoutStore(),
+    )
+    clients = [app.test_client() for _ in range(8)]
+    for client in clients:
+        with client.session_transaction() as user_session:
+            user_session["user_email"] = "person@example.com"
+            user_session["user_email_verified"] = True
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        responses = list(
+            executor.map(
+                lambda client: client.get(
+                    "/subscribe",
+                    follow_redirects=False,
+                ),
+                clients,
+            )
+        )
+
+    assert {response.status_code for response in responses} == {303}
+    assert {response.location for response in responses} == {
+        "https://checkout.stripe.test/concurrent"
+    }
+    assert len({call["idempotency_key"] for call in calls}) == 1
+    assert len(sessions_by_key) == 1
+    assert all(
+        "person@example.com" not in call["idempotency_key"]
+        for call in calls
+    )
+
+
+def test_one_identity_cannot_open_different_app_checkout(monkeypatch):
+    created = []
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        Customer=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(data=[]),
+        ),
+        Subscription=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(data=[]),
+        ),
+        checkout=SimpleNamespace(
+            Session=SimpleNamespace(
+                create=lambda **kwargs: (
+                    created.append(dict(kwargs))
+                    or SimpleNamespace(
+                        id="cs_test_first_app_123",
+                        url="https://checkout.stripe.test/first",
+                    )
+                ),
+            )
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    store = MemoryCheckoutStore()
+    first_app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        primary_url="https://funding.example",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+        workspace_id="funding",
+        pending_checkout_store=store,
+    )
+    other_app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        primary_url="https://education.example",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+        workspace_id="education",
+        pending_checkout_store=store,
+    )
+    first = first_app.test_client()
+    other = other_app.test_client()
+    for client in (first, other):
+        with client.session_transaction() as user_session:
+            user_session["user_email"] = "person@example.com"
+            user_session["user_email_verified"] = True
+
+    first_response = first.get("/subscribe", follow_redirects=False)
+    other_response = other.get("/subscribe", follow_redirects=False)
+
+    assert first_response.status_code == 303
+    assert other_response.status_code == 302
+    assert other_response.location == (
+        "https://education.example/?checkout=pending"
+    )
+    assert len(created) == 1
+
+
+def test_managed_checkout_fails_closed_when_firestore_is_unavailable(
+    monkeypatch,
+):
+    created = []
+    monkeypatch.setenv("K_SERVICE", "foia")
+    monkeypatch.setenv("FRESHSKY_USAGE_HMAC_KEY", "dedicated-signing-key")
+    monkeypatch.setattr(
+        freemium.FirestoreCheckoutStore,
+        "from_environment",
+        classmethod(
+            lambda _cls: (_ for _ in ()).throw(
+                CheckoutStoreUnavailable("Firestore unavailable")
+            )
+        ),
+    )
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        Customer=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(data=[]),
+        ),
+        Subscription=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(data=[]),
+        ),
+        checkout=SimpleNamespace(
+            Session=SimpleNamespace(
+                create=lambda **kwargs: created.append(kwargs),
+            )
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        primary_url="https://foia.example",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+    )
+    client = app.test_client()
+    with client.session_transaction() as user_session:
+        user_session["user_email"] = "person@example.com"
+        user_session["user_email_verified"] = True
+
+    response = client.get("/subscribe", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.location == (
+        "https://foia.example/?checkout=unavailable"
+    )
+    assert created == []
+
+
+def test_managed_checkout_fails_closed_without_pseudonym_key(monkeypatch):
+    created = []
+    monkeypatch.setenv("K_SERVICE", "foia")
+    monkeypatch.delenv("FRESHSKY_USAGE_HMAC_KEY", raising=False)
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        Customer=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(data=[]),
+        ),
+        Subscription=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(data=[]),
+        ),
+        checkout=SimpleNamespace(
+            Session=SimpleNamespace(
+                create=lambda **kwargs: created.append(kwargs),
+            )
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        primary_url="https://foia.example",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+    )
+    client = app.test_client()
+    with client.session_transaction() as user_session:
+        user_session["user_email"] = "person@example.com"
+        user_session["user_email_verified"] = True
+
+    response = client.get("/subscribe", follow_redirects=False)
+
+    assert response.status_code == 302
+    assert response.location == (
+        "https://foia.example/?checkout=unavailable"
+    )
+    assert created == []
+
+
+def test_managed_runtime_rejects_process_local_checkout_store(monkeypatch):
+    monkeypatch.setenv("K_SERVICE", "foia")
+
+    with pytest.raises(
+        ValueError,
+        match="managed subscription checkout requires a durable store",
+    ):
+        make_app(
+            stripe_secret_key="sk_test_subscription",
+            primary_url="https://foia.example",
+            subscriptions_enabled=True,
+            subscription_tier="focus",
+            subscription_price_id="price_focus_monthly",
+            subscription_amount_cents=999,
+            pending_checkout_store=MemoryCheckoutStore(),
+        )
 
 
 def test_verified_checkout_preserves_matching_oauth_session(monkeypatch):

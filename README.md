@@ -16,6 +16,9 @@ Shared infrastructure for Fresh Sky LLC apps.
 - `entitlements` — Server-side plan/workspace resolution, deterministic quota
   decisions, reservation/reconciliation types, and additive
   `/api/user-status` fields.
+- `checkout_store` — Transactional, pseudonymous pending Stripe Checkout
+  reservations that prevent concurrent or long-lived duplicate subscription
+  sessions without storing email addresses or Checkout URLs.
 - `agent_runtime` — Validated `AgentRun`, `SourceRecord`, and `ArtifactRecord`
   audit envelopes that intentionally omit raw prompts and generated content.
 - `/metrics/providers` — Process-local provider attempts, successes, failure
@@ -137,6 +140,14 @@ callback base from the workspace's canonical `primary_url`. Cross-host use
 still requires the broker deployment to preserve/relay OAuth state and the
 resulting authenticated session; changing the callback URL alone does not
 create a cross-host session handoff.
+
+Subscription checkout now reserves one pseudonymous identity for the complete
+23-hour Stripe Session lifetime. Managed runtimes require the Firestore
+backend and fail closed if it is unavailable; `MemoryCheckoutStore` is for
+tests and local development only. Concurrent retries reuse the reservation's
+stable Stripe idempotency key. The reservation fingerprint binds the exact
+application host, tier, workspace, and server-selected Price ID, while the
+stored record contains no raw email address, Checkout URL, or credential.
 
 `SourceRecord` has explicit official URL, jurisdiction, effective/retrieval
 dates, SHA-256 content hash, license, next-review date, and reviewer fields

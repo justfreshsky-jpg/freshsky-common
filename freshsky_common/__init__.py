@@ -4,6 +4,7 @@ Modules:
     llm        — Multi-provider LLM fallback chain; no direct Gemini provider.
     auth       — Google OAuth helpers.
     freemium   — Preview access, OAuth, subscription billing, and email capture.
+    checkout_store — Durable pseudonymous pending Stripe Checkout reservations.
     entitlements — Workspace access and deterministic usage-unit quotas.
     agent_runtime — Validated AgentRun and SourceRecord audit envelopes.
     security   — Security headers + sanitization helpers.
@@ -14,6 +15,16 @@ Modules:
 """
 
 from .agent_runtime import AgentRun, AgentRunStatus, ArtifactRecord, SourceRecord
+from .checkout_store import (
+    CheckoutStore,
+    CheckoutStoreConflict,
+    CheckoutStoreCorrupt,
+    CheckoutStoreUnavailable,
+    FirestoreCheckoutStore,
+    MemoryCheckoutStore,
+    PendingCheckout,
+    checkout_fingerprint,
+)
 from .entitlements import (
     InMemoryQuotaLedger,
     PlanEntitlement,
@@ -34,13 +45,20 @@ from .runtime_policy import (
 )
 
 
-__version__ = "0.6.2"
+__version__ = "0.6.3"
 
 __all__ = [
     "AgentRun",
     "AgentRunStatus",
     "ArtifactRecord",
+    "CheckoutStore",
+    "CheckoutStoreConflict",
+    "CheckoutStoreCorrupt",
+    "CheckoutStoreUnavailable",
+    "FirestoreCheckoutStore",
     "InMemoryQuotaLedger",
+    "MemoryCheckoutStore",
+    "PendingCheckout",
     "PlanEntitlement",
     "PlanTier",
     "QuotaDecision",
@@ -52,6 +70,7 @@ __all__ = [
     "WorkflowBudget",
     "WorkflowClass",
     "WorkspaceId",
+    "checkout_fingerprint",
     "evaluate_quota",
     "resolve_entitlement",
     "user_status_fields",

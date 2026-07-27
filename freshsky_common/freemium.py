@@ -46,13 +46,22 @@ import logging
 import os
 import re
 import secrets
+import threading
 import time
 from datetime import datetime, timezone
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 from urllib.parse import urlencode, urlparse
 
 from flask import (
     Flask, Response, jsonify, redirect, request, session, url_for,
+)
+
+from .checkout_store import (
+    CheckoutStore,
+    CheckoutStoreConflict,
+    FirestoreCheckoutStore,
+    MemoryCheckoutStore,
+    checkout_fingerprint,
 )
 
 
@@ -66,6 +75,29 @@ PLAN_LIMITS = {
     'advanced': {'daily': 120, 'monthly': 600},
     'owner': {'daily': 500, 'monthly': 2000},
 }
+
+_PLAN_PRICE_ENVS = {
+    'focus': 'STRIPE_PRICE_FOCUS_MONTHLY',
+    'civic': 'STRIPE_PRICE_CIVIC_MONTHLY',
+    'plus': 'STRIPE_PRICE_PLUS_MONTHLY',
+    'advanced': 'STRIPE_PRICE_ADVANCED_MONTHLY',
+}
+_DUPLICATE_BLOCKING_STATUSES = frozenset({
+    'active',
+    'trialing',
+    'past_due',
+    'unpaid',
+    'incomplete',
+    'paused',
+})
+
+
+def _stripe_field(value: Any, name: str, default: Any = None) -> Any:
+    if isinstance(value, dict):
+        return value.get(name, default)
+    return getattr(value, name, default)
+
+
 def subscription_item_tier(
     item,
     configured_price_id: str = '',
@@ -107,6 +139,74 @@ def subscription_item_tier(
         if name.startswith(f'freshsky {candidate}'):
             return candidate
     return ''
+
+
+def _freshsky_subscription_item_tier(
+    stripe_module: Any,
+    item: Any,
+    configured_price_id: str,
+    configured_tier: str,
+) -> str:
+    """Recognize one FreshSky item from immutable price or product facts."""
+    price = _stripe_field(item, 'price', {}) or {}
+    price_id = str(_stripe_field(price, 'id', '') or '')
+    for tier, env_name in _PLAN_PRICE_ENVS.items():
+        known_price_id = os.environ.get(env_name, '').strip()
+        if known_price_id and hmac.compare_digest(price_id, known_price_id):
+            return tier
+    tier = subscription_item_tier(
+        item,
+        configured_price_id,
+        configured_tier,
+    )
+    product = _stripe_field(price, 'product', None)
+    if not tier and isinstance(product, str) and product:
+        product = stripe_module.Product.retrieve(product)
+        tier = subscription_item_tier(
+            item,
+            configured_price_id,
+            configured_tier,
+            product_override=product,
+        )
+    return tier
+
+
+def _has_blocking_freshsky_subscription(
+    stripe_module: Any,
+    email: str,
+    configured_price_id: str,
+    configured_tier: str,
+) -> bool:
+    """Fail-safe precheck for any nonterminal FreshSky subscription."""
+    customers = stripe_module.Customer.list(email=email, limit=10)
+    for customer in _stripe_field(customers, 'data', []) or []:
+        customer_id = str(_stripe_field(customer, 'id', '') or '')
+        if not customer_id:
+            continue
+        subscriptions = stripe_module.Subscription.list(
+            customer=customer_id,
+            status='all',
+            limit=100,
+            expand=['data.items.data.price.product'],
+        )
+        for subscription in _stripe_field(subscriptions, 'data', []) or []:
+            status = str(_stripe_field(subscription, 'status', '') or '')
+            if status not in _DUPLICATE_BLOCKING_STATUSES:
+                continue
+            items = _stripe_field(
+                _stripe_field(subscription, 'items', {}),
+                'data',
+                [],
+            ) or []
+            for item in items:
+                if _freshsky_subscription_item_tier(
+                    stripe_module,
+                    item,
+                    configured_price_id,
+                    configured_tier,
+                ):
+                    return True
+    return False
 
 
 _USAGE_FIRESTORE_CLIENT = None
@@ -314,6 +414,7 @@ def register_freemium(
     workspace_id: str = '',
     focus_workspace: str = '',
     auth_broker_url: str = '',
+    pending_checkout_store: CheckoutStore | None = None,
 ) -> Callable[..., Optional[Response | tuple]]:
     """Wire free-access routes onto ``app`` and return the gate function.
 
@@ -345,10 +446,31 @@ def register_freemium(
         or os.environ.get('FRESHSKY_ENV', '').strip().lower()
         in {'prod', 'production'}
     )
+    if managed_runtime and isinstance(
+        pending_checkout_store,
+        MemoryCheckoutStore,
+    ):
+        raise ValueError(
+            'managed subscription checkout requires a durable store'
+        )
     usage_hmac_key = (
         dedicated_usage_hmac_key
         or (stripe_secret_key if not managed_runtime else '')
     )
+    checkout_store_lock = threading.Lock()
+    if pending_checkout_store is None and not managed_runtime:
+        pending_checkout_store = MemoryCheckoutStore()
+
+    def _pending_checkout_store() -> CheckoutStore:
+        nonlocal pending_checkout_store
+        if pending_checkout_store is None:
+            with checkout_store_lock:
+                if pending_checkout_store is None:
+                    pending_checkout_store = (
+                        FirestoreCheckoutStore.from_environment()
+                    )
+        return pending_checkout_store
+
     workspace_id = (
         workspace_id or os.environ.get('FRESHSKY_WORKSPACE_ID', '')
     ).strip().lower()
@@ -853,6 +975,94 @@ def register_freemium(
         try:
             import stripe
             stripe.api_key = stripe_secret_key
+            if _has_blocking_freshsky_subscription(
+                stripe,
+                email,
+                subscription_price_id,
+                subscription_tier,
+            ):
+                return redirect(
+                    url_for('freemium_billing_portal'),
+                    code=302,
+                )
+            if not usage_hmac_key:
+                raise RuntimeError(
+                    'pending-checkout pseudonym key is unavailable'
+                )
+            from .entitlements import make_usage_subject
+
+            checkout_workspace = focus_workspace or workspace_id
+            subject_id = make_usage_subject(email, usage_hmac_key)
+            fingerprint = checkout_fingerprint(
+                app_host=primary_host,
+                tier=subscription_tier,
+                workspace_id=checkout_workspace,
+                price_id=subscription_price_id,
+            )
+            pending = _pending_checkout_store().reserve(
+                subject_id,
+                fingerprint,
+            )
+            if pending.checkout_session_id:
+                existing_checkout = stripe.checkout.Session.retrieve(
+                    pending.checkout_session_id
+                )
+                existing_status = str(
+                    _stripe_field(existing_checkout, 'status', '') or ''
+                )
+                existing_metadata = (
+                    _stripe_field(existing_checkout, 'metadata', {}) or {}
+                )
+                existing_workspace = str(
+                    existing_metadata.get('workspace_id') or ''
+                )
+                exact_existing = bool(
+                    str(
+                        _stripe_field(
+                            existing_checkout,
+                            'client_reference_id',
+                            '',
+                        )
+                        or ''
+                    )
+                    == subject_id
+                    and hmac.compare_digest(
+                        str(
+                            existing_metadata.get(
+                                'checkout_fingerprint'
+                            )
+                            or ''
+                        ),
+                        fingerprint,
+                    )
+                    and existing_metadata.get('app_host') == primary_host
+                    and existing_metadata.get('tier') == subscription_tier
+                    and existing_workspace == checkout_workspace
+                )
+                if existing_status == 'open' and exact_existing:
+                    existing_url = str(
+                        _stripe_field(existing_checkout, 'url', '') or ''
+                    )
+                    if existing_url.startswith('https://'):
+                        return redirect(existing_url, code=303)
+                if existing_status == 'complete' and exact_existing:
+                    return redirect(
+                        url_for(
+                            'freemium_subscription_success',
+                            session_id=pending.checkout_session_id,
+                        ),
+                        code=303,
+                    )
+                raise CheckoutStoreConflict(
+                    'pending Stripe Checkout is not reusable'
+                )
+            metadata = {
+                'app_host': primary_host,
+                'tier': subscription_tier,
+                'checkout_fingerprint': fingerprint,
+            }
+            if checkout_workspace:
+                metadata['workspace_id'] = checkout_workspace
             args = {
                 'mode': 'subscription',
                 'line_items': [{'price': subscription_price_id, 'quantity': 1}],
@@ -862,33 +1072,31 @@ def register_freemium(
                 ),
                 'cancel_url': f'{primary_url}/?checkout=canceled',
                 'allow_promotion_codes': True,
-                'metadata': {
-                    'app_host': primary_host,
-                    'tier': subscription_tier,
-                },
-                'subscription_data': {
-                    'metadata': {
-                        'app_host': primary_host,
-                        'tier': subscription_tier,
-                    }
-                },
+                'client_reference_id': subject_id,
+                'expires_at': int(pending.expires_at.timestamp()),
+                'metadata': metadata,
+                'subscription_data': {'metadata': metadata},
                 'customer_email': email,
+                'idempotency_key': (
+                    'freshsky-subscription-v2-'
+                    f'{pending.reservation_id}'
+                ),
             }
-            if workspace_id:
-                args['metadata']['workspace_id'] = workspace_id
-                args['subscription_data']['metadata']['workspace_id'] = workspace_id
-            window = int(time.time() // (15 * 60))
-            secret = str(app.secret_key or '').encode('utf-8')
-            digest = hmac.new(
-                secret,
-                f'freshsky-subscription-v1\0{email}\0{window}'.encode('utf-8'),
-                hashlib.sha256,
-            ).hexdigest()[:40]
-            args['idempotency_key'] = (
-                f'freshsky-subscription-v1-{digest}-{window}'
-            )
             checkout = stripe.checkout.Session.create(**args)
-            return redirect(checkout.url, code=303)
+            checkout_id = str(_stripe_field(checkout, 'id', '') or '')
+            checkout_url = str(_stripe_field(checkout, 'url', '') or '')
+            if not checkout_url.startswith('https://'):
+                raise RuntimeError('Stripe Checkout URL is invalid')
+            _pending_checkout_store().attach_session(
+                pending,
+                checkout_id,
+            )
+            return redirect(checkout_url, code=303)
+        except CheckoutStoreConflict:
+            return redirect(
+                f'{primary_url}/?checkout=pending',
+                code=302,
+            )
         except Exception as exc:
             logger.error(
                 'Stripe subscription checkout error; error_type=%s',
