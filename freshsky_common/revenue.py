@@ -12,7 +12,7 @@ from typing import Optional
 
 from flask import Flask, Response, jsonify
 
-from .brand import install_brand_assets
+from .brand import BRAND_CSS_VERSION, install_brand_assets
 
 # ─── CATEGORIES ───────────────────────────────────────────
 # Each app declares its category at install time. Used by cross-promo,
@@ -339,7 +339,7 @@ def og_snippet(brand: str, primary_url: str, description: str = '') -> str:
         f'<meta name="twitter:description" content="{desc}">\n'
         f'<meta name="twitter:image" content="https://freshskyai.com/og-image.png">\n'
         + _PORTFOLIO_SKIN_CSS
-        + '<link rel="stylesheet" href="/freshsky.css">\n'
+        + f'<link rel="stylesheet" href="/freshsky.css?v={BRAND_CSS_VERSION}">\n'
     )
 
 
@@ -510,8 +510,10 @@ def install_visuals(app: Flask, *, ad_snippet: str = '') -> None:
             head_insert += ad_snippet
         if 'fs-portfolio-skin' not in body:
             head_insert += _PORTFOLIO_SKIN_CSS
-        if 'href="/freshsky.css"' not in body:
-            head_insert += '<link rel="stylesheet" href="/freshsky.css">'
+        if 'href="/freshsky.css' not in body:
+            head_insert += (
+                f'<link rel="stylesheet" href="/freshsky.css?v={BRAND_CSS_VERSION}">'
+            )
         if not head_insert:
             return response
         new = body.replace('</head>', head_insert + '</head>', 1)

@@ -13,6 +13,7 @@ from flask import Flask
 
 from freshsky_common.freemium import register_freemium
 from freshsky_common import freemium
+from freshsky_common.revenue import og_snippet
 from freshsky_common.checkout_store import (
     CheckoutStoreUnavailable,
     MemoryCheckoutStore,
@@ -1521,7 +1522,8 @@ def test_optional_public_routes_are_disabled_by_default():
 
 
 def test_shared_visual_system_is_local_and_cacheable():
-    response = make_app().test_client().get("/freshsky.css")
+    client = make_app().test_client()
+    response = client.get("/freshsky.css?v=0.6.5")
 
     assert response.status_code == 200
     assert response.mimetype == "text/css"
@@ -1531,6 +1533,9 @@ def test_shared_visual_system_is_local_and_cacheable():
     assert "box-sizing: border-box;" in stylesheet
     assert "margin-inline: auto;" in stylesheet
     assert response.headers["Cache-Control"] == "public, max-age=3600"
+    assert 'href="/freshsky.css?v=0.6.5"' in og_snippet(
+        "Example", "https://example.com/"
+    )
 
 
 def test_google_login_uses_fixed_callback_and_nonce():
