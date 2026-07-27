@@ -102,12 +102,15 @@ body > header p {
   position: relative;
   z-index: 1;
   max-width: 760px;
+  margin-inline: auto;
   color: #cbd8ee;
   font-size: clamp(1rem, 2vw, 1.16rem);
 }
 
 main {
+  box-sizing: border-box;
   width: min(100%, 980px);
+  margin-inline: auto;
   padding: clamp(34px, 6vw, 72px) 18px 96px;
 }
 

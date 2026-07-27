@@ -1525,7 +1525,11 @@ def test_shared_visual_system_is_local_and_cacheable():
 
     assert response.status_code == 200
     assert response.mimetype == "text/css"
-    assert "Fresh Sky 2026 shared visual system" in response.get_data(as_text=True)
+    stylesheet = response.get_data(as_text=True)
+    assert "Fresh Sky 2026 shared visual system" in stylesheet
+    assert "main {" in stylesheet
+    assert "box-sizing: border-box;" in stylesheet
+    assert "margin-inline: auto;" in stylesheet
     assert response.headers["Cache-Control"] == "public, max-age=3600"
 
 
