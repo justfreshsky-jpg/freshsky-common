@@ -10,7 +10,7 @@ from importlib import resources
 
 from flask import Flask, Response
 
-BRAND_CSS_VERSION = "0.6.5"
+BRAND_CSS_VERSION = "0.6.6"
 
 
 def install_brand_assets(app: Flask) -> None:

@@ -401,6 +401,51 @@ a:hover{color:#b6f7ff}
 </style>
 """
 
+_PORTFOLIO_CONTRAST_CSS = """<style id="fs-contrast-guard">
+/* Loaded last so older product styles cannot place dark text on dark surfaces. */
+.card p:not(.error):not(.success):not(.warning):not(.danger):not(.alert),
+.card li:not(.error):not(.success):not(.warning):not(.danger):not(.alert),
+.tool p:not(.error):not(.success):not(.warning):not(.danger):not(.alert),
+.tool li:not(.error):not(.success):not(.warning):not(.danger):not(.alert),
+.feature-card p,.feature-card li,.step-card p,.step-card li,
+.landing-section p,.landing-section li,.tool-desc,.feature-desc,.step-desc,
+.stat-label,.landing-stat-label,.section-subtitle,.helper-text,.help-text,
+.form-hint,.agent-tools-summary,.agent-loading,.fs-support-body,
+.fs-agent-tools,.fs-agent-upgrade-fine{
+  color:#cbd5e1!important;opacity:1!important
+}
+.card label,.tool label,.landing-section label,main label,main legend{
+  color:#f4f7ff!important;opacity:1!important
+}
+.card strong,.tool strong,.feature-card strong,.step-card strong,
+.landing-section strong{color:#f8fbff!important}
+main a:not(.btn):not(.btn-primary):not(.btn-secondary):not(.btn-outline):not(.btn-ghost):not(.landing-cta):not([role="button"]),
+.card a:not(.btn),.tool a:not(.btn),footer a{
+  color:#7ddff0!important;text-decoration-color:rgba(125,223,240,.62)!important
+}
+main a:not(.btn):not(.btn-primary):not(.btn-secondary):not(.btn-outline):not(.btn-ghost):not(.landing-cta):not([role="button"]):hover,
+.card a:not(.btn):hover,.tool a:not(.btn):hover,footer a:hover{
+  color:#d7fbff!important
+}
+.btn-primary,.landing-cta,button.primary,button[type="submit"],
+.btn:not(.btn-secondary):not(.btn-outline):not(.btn-ghost):not(.btn-danger):not(.btn-warning){
+  background:linear-gradient(135deg,#67e8f9,#a5b4fc)!important;
+  color:#06101f!important;border-color:rgba(255,255,255,.2)!important
+}
+.btn-secondary,.btn-outline,.btn-ghost{
+  background:#17213d!important;color:#eef5ff!important;
+  border-color:#536483!important
+}
+input,textarea,select,.input{
+  background:#080d22!important;color:#f4f7ff!important;border-color:#536483!important
+}
+input::placeholder,textarea::placeholder{color:#aab8d0!important;opacity:1!important}
+.landing-stats-strip,.stats-row,.stat-card{
+  background:rgba(15,23,48,.92)!important;color:#f4f7ff!important
+}
+</style>
+"""
+
 
 def schema_snippet(brand: str, primary_url: str, category: str, description: str = '') -> str:
     """JSON-LD structured data (schema.org). Tells Google this is a
@@ -514,6 +559,8 @@ def install_visuals(app: Flask, *, ad_snippet: str = '') -> None:
             head_insert += (
                 f'<link rel="stylesheet" href="/freshsky.css?v={BRAND_CSS_VERSION}">'
             )
+        if 'id="fs-contrast-guard"' not in body:
+            head_insert += _PORTFOLIO_CONTRAST_CSS
         if not head_insert:
             return response
         new = body.replace('</head>', head_insert + '</head>', 1)

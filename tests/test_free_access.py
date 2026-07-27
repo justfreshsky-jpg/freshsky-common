@@ -13,7 +13,7 @@ from flask import Flask
 
 from freshsky_common.freemium import register_freemium
 from freshsky_common import freemium
-from freshsky_common.revenue import og_snippet
+from freshsky_common.revenue import install_visuals, og_snippet
 from freshsky_common.checkout_store import (
     CheckoutStoreUnavailable,
     MemoryCheckoutStore,
@@ -1523,7 +1523,7 @@ def test_optional_public_routes_are_disabled_by_default():
 
 def test_shared_visual_system_is_local_and_cacheable():
     client = make_app().test_client()
-    response = client.get("/freshsky.css?v=0.6.5")
+    response = client.get("/freshsky.css?v=0.6.6")
 
     assert response.status_code == 200
     assert response.mimetype == "text/css"
@@ -1533,9 +1533,60 @@ def test_shared_visual_system_is_local_and_cacheable():
     assert "box-sizing: border-box;" in stylesheet
     assert "margin-inline: auto;" in stylesheet
     assert response.headers["Cache-Control"] == "public, max-age=3600"
-    assert 'href="/freshsky.css?v=0.6.5"' in og_snippet(
+    assert 'href="/freshsky.css?v=0.6.6"' in og_snippet(
         "Example", "https://example.com/"
     )
+
+
+def test_contrast_guard_is_injected_after_product_styles():
+    app = Flask(__name__)
+
+    @app.route("/")
+    def product_page():
+        return (
+            '<html><head><style id="product-styles">'
+            '.step-card p{color:#64748b!important}'
+            '</style></head><body><main><div class="step-card">'
+            "<p>Readable instructions</p></div></main></body></html>"
+        )
+
+    install_visuals(app)
+    body = app.test_client().get("/").get_data(as_text=True)
+
+    assert 'id="fs-contrast-guard"' in body
+    assert body.index('id="product-styles"') < body.index('id="fs-contrast-guard"')
+    assert ".step-card p" in body
+    assert "color:#cbd5e1!important" in body
+
+
+def test_contrast_guard_palette_meets_normal_text_threshold():
+    def luminance(hex_color):
+        channels = [
+            int(hex_color[index:index + 2], 16) / 255
+            for index in (1, 3, 5)
+        ]
+        linear = [
+            channel / 12.92
+            if channel <= 0.03928
+            else ((channel + 0.055) / 1.055) ** 2.4
+            for channel in channels
+        ]
+        return sum(
+            weight * channel
+            for weight, channel in zip((0.2126, 0.7152, 0.0722), linear)
+        )
+
+    def contrast(foreground, background):
+        lighter, darker = sorted(
+            (luminance(foreground), luminance(background)),
+            reverse=True,
+        )
+        return (lighter + 0.05) / (darker + 0.05)
+
+    assert contrast("#cbd5e1", "#111a35") >= 4.5
+    assert contrast("#f4f7ff", "#080d22") >= 4.5
+    assert contrast("#06101f", "#67e8f9") >= 4.5
+    assert contrast("#06101f", "#a5b4fc") >= 4.5
 
 
 def test_google_login_uses_fixed_callback_and_nonce():
