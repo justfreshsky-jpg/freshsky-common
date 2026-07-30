@@ -72,6 +72,10 @@ def test_install_injects_portfolio_skin_once_for_plain_html():
     assert response.status_code == 200
     assert body.count('id="fs-portfolio-skin"') == 1
     assert "--fs-bg:#050816" in body
+    assert 'data-fs-workspace="funding"' in body
+    assert 'data-fs-product="Test App"' in body
+    assert body.count('id="fs-interface-bootstrap"') == 1
+    assert 'src="/freshsky-interface.js?v=0.6.7"' in body
 
 
 def test_visual_only_install_adds_no_routes_or_named_cross_promotion():
@@ -88,3 +92,26 @@ def test_visual_only_install_adds_no_routes_or_named_cross_promotion():
     promo = cross_promo_html("foia", "legal")
     assert "Fresh Sky AI catalog" in promo
     assert "Small Claims" not in promo
+
+
+def test_interface_foundation_escapes_product_context_and_stays_idempotent():
+    app = Flask(__name__)
+
+    @app.route("/")
+    def index():
+        return (
+            '<html><head><style id="fs-portfolio-skin"></style></head>'
+            '<body><main>Ready</main></body></html>'
+        )
+
+    install_visuals(
+        app,
+        workspace="action-packs",
+        brand='Forms "Plus" <Helper>',
+    )
+
+    body = app.test_client().get("/").text
+
+    assert body.count('data-fs-workspace="action-packs"') == 1
+    assert 'data-fs-product="Forms &quot;Plus&quot; &lt;Helper&gt;"' in body
+    assert body.count('id="fs-interface-bootstrap"') == 1

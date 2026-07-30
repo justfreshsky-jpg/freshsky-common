@@ -8,6 +8,8 @@ Two things every app gets for free:
 from __future__ import annotations
 
 import os
+import re
+from html import escape
 from typing import Optional
 
 from flask import Flask, Response, jsonify
@@ -347,6 +349,11 @@ _PORTFOLIO_SKIN_CSS = """<style id="fs-portfolio-skin">
 /* FreshSky Horizon interface. Product-specific layouts remain authoritative;
    this layer supplies a coherent, accessible visual system across the fleet. */
 :root{--fs-bg:#050816;--fs-fg:#f4f7ff;--fs-mute:#aab8d0;--fs-card:rgba(15,23,48,.78);--fs-border:rgba(148,176,225,.22);--fs-accent:#5ee7f7;--fs-accent-dark:#7c8cff;--fs-soft:rgba(94,231,247,.11);--fs-shadow:0 20px 65px rgba(0,0,0,.32);--fs-glow:0 0 0 1px rgba(94,231,247,.08),0 18px 55px rgba(36,75,180,.2)}
+body[data-fs-workspace="funding"]{--fs-accent:#5ee8b8;--fs-accent-dark:#f1c66a;--fs-soft:rgba(94,232,184,.11)}
+body[data-fs-workspace="education"]{--fs-accent:#6ee7d8;--fs-accent-dark:#8da2ff;--fs-soft:rgba(110,231,216,.11)}
+body[data-fs-workspace="civic"]{--fs-accent:#78d8e7;--fs-accent-dark:#f3bd63;--fs-soft:rgba(120,216,231,.11)}
+body[data-fs-workspace="action-packs"]{--fs-accent:#86e3f0;--fs-accent-dark:#b3a3ff;--fs-soft:rgba(134,227,240,.11)}
+body[data-fs-workspace="utility"]{--fs-accent:#70dce2;--fs-accent-dark:#9eb5ff;--fs-soft:rgba(112,220,226,.11)}
 html{color-scheme:dark;background:var(--fs-bg)!important}
 body{background:radial-gradient(circle at 12% -5%,rgba(67,82,219,.28),transparent 32rem),radial-gradient(circle at 88% 12%,rgba(0,206,209,.17),transparent 30rem),linear-gradient(180deg,#070b1d 0,#050816 55%,#080c1b 100%)!important;color:var(--fs-fg)!important;overflow-wrap:anywhere;min-height:100vh}
 body::before{content:""!important;display:block!important;position:fixed!important;inset:0!important;pointer-events:none!important;z-index:-1!important;opacity:.28;background-image:linear-gradient(rgba(124,140,255,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(124,140,255,.06) 1px,transparent 1px);background-size:56px 56px;mask-image:linear-gradient(to bottom,#000,transparent 72%)}
@@ -400,6 +407,19 @@ a:hover{color:#b6f7ff}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}
 </style>
 """
+
+_WORKSPACE_BY_CATEGORY = {
+    "business": "funding",
+    "education": "education",
+    "civic": "civic",
+    "legal": "action-packs",
+    "benefits": "action-packs",
+    "housing": "action-packs",
+    "healthcare": "action-packs",
+    "newcomer": "action-packs",
+    "financial": "utility",
+    "flagship": "portfolio",
+}
 
 _PORTFOLIO_CONTRAST_CSS = """<style id="fs-contrast-guard">
 /* Loaded last so older product styles cannot place dark text on dark surfaces. */
@@ -526,10 +546,21 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
             'app_brand': brand,
         }
 
-    install_visuals(app, ad_snippet=ad_snippet)
+    install_visuals(
+        app,
+        ad_snippet=ad_snippet,
+        workspace=_WORKSPACE_BY_CATEGORY[category],
+        brand=brand,
+    )
 
 
-def install_visuals(app: Flask, *, ad_snippet: str = '') -> None:
+def install_visuals(
+    app: Flask,
+    *,
+    ad_snippet: str = '',
+    workspace: str = '',
+    brand: str = '',
+) -> None:
     """Inject only the shared interface foundation, without adding routes.
 
     Foundation and civic services can use this when they already own their SEO,
@@ -561,8 +592,29 @@ def install_visuals(app: Flask, *, ad_snippet: str = '') -> None:
             )
         if 'id="fs-contrast-guard"' not in body:
             head_insert += _PORTFOLIO_CONTRAST_CSS
+        if 'id="fs-interface-bootstrap"' not in body:
+            head_insert += (
+                '<script id="fs-interface-bootstrap" '
+                f'src="/freshsky-interface.js?v={BRAND_CSS_VERSION}" defer></script>'
+            )
         if not head_insert:
             return response
         new = body.replace('</head>', head_insert + '</head>', 1)
+        body_has_workspace = re.search(
+            r'<body\b[^>]*\bdata-fs-workspace=',
+            new,
+            flags=re.IGNORECASE,
+        )
+        if workspace and not body_has_workspace:
+            attributes = f' data-fs-workspace="{escape(workspace, quote=True)}"'
+            if brand:
+                attributes += f' data-fs-product="{escape(brand, quote=True)}"'
+            new = re.sub(
+                r'<body(?=[\s>])',
+                '<body' + attributes,
+                new,
+                count=1,
+                flags=re.IGNORECASE,
+            )
         response.set_data(new)
         return response
