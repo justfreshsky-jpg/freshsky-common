@@ -1523,7 +1523,7 @@ def test_optional_public_routes_are_disabled_by_default():
 
 def test_shared_visual_system_is_local_and_cacheable():
     client = make_app().test_client()
-    response = client.get("/freshsky.css?v=0.6.6")
+    response = client.get("/freshsky.css?v=0.6.7")
 
     assert response.status_code == 200
     assert response.mimetype == "text/css"
@@ -1533,9 +1533,15 @@ def test_shared_visual_system_is_local_and_cacheable():
     assert "box-sizing: border-box;" in stylesheet
     assert "margin-inline: auto;" in stylesheet
     assert response.headers["Cache-Control"] == "public, max-age=3600"
-    assert 'href="/freshsky.css?v=0.6.6"' in og_snippet(
+    assert 'href="/freshsky.css?v=0.6.7"' in og_snippet(
         "Example", "https://example.com/"
     )
+
+    interface = client.get("/freshsky-interface.js?v=0.6.7")
+    assert interface.status_code == 200
+    assert interface.mimetype == "text/javascript"
+    assert "Skip to main content" in interface.get_data(as_text=True)
+    assert interface.headers["Cache-Control"] == "public, max-age=3600"
 
 
 def test_contrast_guard_is_injected_after_product_styles():

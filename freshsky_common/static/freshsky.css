@@ -13,6 +13,26 @@
   --fs-shadow: 0 18px 50px rgba(30, 49, 92, 0.1);
 }
 
+.fs-skip-link {
+  position: fixed;
+  z-index: 10001;
+  top: 8px;
+  left: 12px;
+  padding: 10px 14px;
+  border: 2px solid #fff;
+  border-radius: 10px;
+  background: #071426;
+  color: #fff;
+  font-weight: 800;
+  text-decoration: none;
+  transform: translateY(-160%);
+  transition: transform 120ms ease;
+}
+
+.fs-skip-link:focus {
+  transform: translateY(0);
+}
+
 html {
   color-scheme: light;
   scroll-behavior: smooth;
@@ -27,6 +47,36 @@ body {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
   text-rendering: optimizeLegibility;
+}
+
+body[data-fs-workspace="funding"] {
+  --fs-blue: #15806a;
+  --fs-cyan: #42d9a9;
+  --fs-gold: #f2bd58;
+}
+
+body[data-fs-workspace="education"] {
+  --fs-blue: #3157e6;
+  --fs-cyan: #40d8c2;
+  --fs-gold: #f0b35a;
+}
+
+body[data-fs-workspace="civic"] {
+  --fs-blue: #245c92;
+  --fs-cyan: #24a9b8;
+  --fs-gold: #efb54a;
+}
+
+body[data-fs-workspace="action-packs"] {
+  --fs-blue: #6254d9;
+  --fs-cyan: #38c8d9;
+  --fs-gold: #e9ac4a;
+}
+
+body[data-fs-workspace="utility"] {
+  --fs-blue: #326acb;
+  --fs-cyan: #28c9cc;
+  --fs-gold: #dca34a;
 }
 
 body::before {
@@ -227,6 +277,20 @@ a.primary:hover {
   letter-spacing: -0.01em;
 }
 
+.fs-access-context {
+  display: inline-flex;
+  min-height: 28px;
+  align-items: center;
+  padding: 4px 9px;
+  border: 1px solid rgba(148, 176, 225, 0.25);
+  border-radius: 999px;
+  background: rgba(148, 176, 225, 0.08);
+  color: #dbe7fb;
+  font-size: 11.5px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
 .fs-access-brand::before {
   width: 9px;
   height: 9px;
@@ -303,6 +367,27 @@ a.primary:hover {
   font-weight: 750;
 }
 
+.topbar a,
+nav a,
+footer a,
+.foot a,
+.footer a,
+.fs-catalog-link a,
+.fs-hub-mark-inner a {
+  min-width: 28px;
+  min-height: 28px;
+}
+
+.card p,
+.card li,
+.tool p,
+.tool li,
+.landing-section p,
+.landing-section li {
+  max-width: 72ch;
+  line-height: 1.65;
+}
+
 @media (max-width: 640px) {
   body::before {
     background-size: 26px 26px;
@@ -318,6 +403,10 @@ a.primary:hover {
     width: 100%;
     flex-wrap: wrap;
     justify-content: flex-start;
+  }
+
+  .fs-access-context {
+    order: 3;
   }
 
   .fs-access-user {

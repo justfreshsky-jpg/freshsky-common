@@ -58,6 +58,18 @@
       'Unlock · $' + dollars + '/month</a>';
   }
 
+  function workspaceLabel() {
+    var workspace = document.body && document.body.getAttribute('data-fs-workspace');
+    return ({
+      funding: 'Funding Desk',
+      education: 'EduSafe Studio',
+      civic: 'CivicOps',
+      'action-packs': 'Action Pack',
+      utility: 'Utility Lab',
+      portfolio: 'FreshSky portfolio'
+    })[workspace] || '';
+  }
+
   function syncBarOffset(bar) {
     var measuredHeight = Math.ceil(bar.getBoundingClientRect().height || 0);
     document.body.style.paddingTop = Math.max(54, measuredHeight) + 'px';
@@ -117,11 +129,16 @@
       : (STATE.google_auth_enabled
           ? '<a href="/auth/google" class="fs-access-link">Sign in</a>'
           : '');
+    var context = workspaceLabel();
+    var contextMarkup = context
+      ? '<span class="fs-access-context">' + escapeHtml(context) + '</span>'
+      : '';
 
     bar.innerHTML =
       '<div class="fs-access-shell">' +
         '<a class="fs-access-brand" href="https://www.freshskyai.com/" ' +
           'target="_blank" rel="noopener">Fresh Sky AI</a>' +
+        contextMarkup +
         '<div class="fs-access-actions">' + user + access + action + account + '</div>' +
       '</div>';
     watchBarOffset(bar);
