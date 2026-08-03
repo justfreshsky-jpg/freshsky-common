@@ -1,13 +1,10 @@
 name: model-upgrade-proposal
 
-# Nightly: query provider catalogs whose free eligibility can be established
-# safely. If a newer model matches upgrade_rules in models.json, open a draft
-# PR proposing the bump. OpenRouter's rotating free router is retained and
-# reported rather than replaced with one catalog model. No auto-merge.
+# Manual owner-authorized review: query provider catalogs whose free eligibility
+# can be established safely. If a newer model matches upgrade_rules in
+# models.json, open a draft PR proposing the bump. No scheduled external writes.
 
 on:
-  schedule:
-    - cron: '17 6 * * *'   # 06:17 UTC daily (off-peak; spreads load)
   workflow_dispatch: {}
 
 permissions:
@@ -17,6 +14,7 @@ permissions:
 jobs:
   scan-and-propose:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
 

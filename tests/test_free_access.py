@@ -120,10 +120,10 @@ def test_versioned_access_bundle_replaces_stable_script_path():
     client = app.test_client()
     page = client.get("/")
     assert page.status_code == 200
-    assert 'src="/freshsky-access-v053.js"' in page.get_data(as_text=True)
+    assert 'src="/freshsky-access-v061.js"' in page.get_data(as_text=True)
     assert 'src="/freemium.js"' not in page.get_data(as_text=True)
 
-    bundle = client.get("/freshsky-access-v053.js")
+    bundle = client.get("/freshsky-access-v061.js")
     assert bundle.status_code == 200
     assert "installVisualSystem" in bundle.get_data(as_text=True)
     assert bundle.headers["Cache-Control"] == "public, max-age=31536000, immutable"
@@ -139,8 +139,8 @@ def test_versioned_access_bundle_is_injected_when_template_has_no_script():
 
     page = app.test_client().get("/")
     body = page.get_data(as_text=True)
-    assert body.count('src="/freshsky-access-v053.js"') == 1
-    assert body.index("<main>") < body.index('src="/freshsky-access-v053.js"')
+    assert body.count('src="/freshsky-access-v061.js"') == 1
+    assert body.index("<main>") < body.index('src="/freshsky-access-v061.js"')
 
 
 def test_optional_global_post_gate_counts_three_previews():
@@ -194,7 +194,7 @@ def test_higher_portfolio_plan_unlocks_lower_tier_app(monkeypatch):
             retrieve=lambda product_id: SimpleNamespace(
                 id=product_id,
                 name="FreshSky Plus 1999 month",
-                metadata={},
+                metadata={"freshsky_tier": "plus"},
             )
         ),
     )
@@ -220,11 +220,156 @@ def test_higher_portfolio_plan_unlocks_lower_tier_app(monkeypatch):
     assert subscription_list_args["expand"] == ["data.items.data.price"]
 
 
+def test_subscription_item_name_without_metadata_is_not_trusted():
+    item = SimpleNamespace(
+        price=SimpleNamespace(
+            id="price_untrusted",
+            product=SimpleNamespace(
+                name="FreshSky Advanced",
+                metadata={},
+            ),
+        )
+    )
+
+    assert freemium.subscription_item_tier(item) == ""
+
+
+def test_subscription_item_generic_tier_metadata_is_not_trusted():
+    item = SimpleNamespace(
+        price=SimpleNamespace(
+            id="price_untrusted",
+            product=SimpleNamespace(metadata={"tier": "advanced"}),
+        )
+    )
+
+    assert freemium.subscription_item_tier(item) == ""
+
+
+def test_workspace_contract_does_not_treat_plans_as_a_simple_ladder(monkeypatch):
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        Customer=SimpleNamespace(list=lambda **_kwargs: SimpleNamespace(data=[])),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+        free_request_limit=3,
+        workspace_id="action_packs",
+    )
+    client = app.test_client()
+
+    with client.session_transaction() as user_session:
+        user_session["user_email"] = "person@example.com"
+        user_session["subscription_tier"] = "focus"
+        user_session["subscription_workspace"] = "education"
+        user_session["subscription_checked_at"] = 9999999999
+    assert client.get("/api/user-status").get_json()["full_access"] is False
+
+    with client.session_transaction() as user_session:
+        user_session["subscription_tier"] = "civic"
+        user_session["subscription_workspace"] = "civic"
+        user_session["subscription_checked_at"] = 9999999999
+    assert client.get("/api/user-status").get_json()["full_access"] is False
+
+    with client.session_transaction() as user_session:
+        user_session["subscription_tier"] = "plus"
+        user_session["subscription_workspace"] = ""
+        user_session["subscription_checked_at"] = 9999999999
+    status = client.get("/api/user-status").get_json()
+    assert status["full_access"] is True
+    assert status["workspace_id"] == "action_packs"
+
+
+def test_focus_subscription_requires_matching_stripe_workspace(monkeypatch):
+    focus_item = SimpleNamespace(
+        price=SimpleNamespace(id="price_focus_monthly", product="prod_focus")
+    )
+    active_subscription = SimpleNamespace(
+        status="active",
+        metadata={
+            "workspace_id": "education",
+            "freshsky_workspace": "education",
+        },
+        items=SimpleNamespace(data=[focus_item]),
+    )
+    fake_stripe = SimpleNamespace(
+        api_key=None,
+        Customer=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(
+                data=[SimpleNamespace(id="cus_portfolio")]
+            )
+        ),
+        Subscription=SimpleNamespace(
+            list=lambda **_kwargs: SimpleNamespace(data=[active_subscription])
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "stripe", fake_stripe)
+    app = make_app(
+        stripe_secret_key="sk_test_subscription",
+        subscriptions_enabled=True,
+        subscription_tier="focus",
+        subscription_price_id="price_focus_monthly",
+        subscription_amount_cents=999,
+        free_request_limit=3,
+        workspace_id="action_packs",
+    )
+    client = app.test_client()
+    with client.session_transaction() as user_session:
+        user_session["user_email"] = "person@example.com"
+
+    assert client.get("/api/user-status").get_json()["full_access"] is False
+
+    active_subscription.metadata = {
+        "workspace_id": "action_packs",
+        "freshsky_workspace": "action_packs",
+    }
+    assert client.get("/api/user-status").get_json()["full_access"] is True
+
+
+def test_signed_usage_request_carries_workspace(monkeypatch):
+    captured = {}
+
+    class MeterResponse:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "allowed": True,
+                "usage": {
+                    "daily": 30,
+                    "monthly": 300,
+                    "daily_used": 1,
+                    "monthly_used": 1,
+                },
+            }
+
+    def post(_url, **kwargs):
+        captured.update(kwargs)
+        return MeterResponse()
+
+    monkeypatch.setenv("K_SERVICE", "childcarefinder")
+    monkeypatch.setattr("requests.post", post)
+
+    freemium._consume_paid_allowance(
+        "person@example.com",
+        "focus",
+        "signing-secret",
+        "action_packs",
+    )
+
+    assert b'"workspace_id":"action_packs"' in captured["data"]
+
+
 def test_paid_plan_usage_limit_returns_429(monkeypatch):
     monkeypatch.setenv("FRESHSKY_ENFORCE_PAID_LIMITS", "true")
     monkeypatch.setattr(
         "freshsky_common.freemium._consume_paid_allowance",
-        lambda email, tier, key: (
+        lambda email, tier, key, workspace_id: (
             False,
             {
                 "daily": 30,

@@ -274,27 +274,90 @@ def faq_schema_html(category: str) -> str:
     return f'<script type="application/ld+json">{_json.dumps(data, separators=(",", ":"))}</script>\n'
 
 
-def trust_line_html(category: str) -> str:
+_CIVIC_ACCESS_SLUGS = {
+    'firstresponder',
+    'nfirs',
+    'cap',
+    'capr',
+    'capstudy',
+    'capmeeting',
+}
+
+
+def trust_line_html(category: str, slug: str = '') -> str:
     """One-line credibility blurb shown in the footer of every app.
 
     Identity-neutral by design — no personal credentials, names, or
     employer references. Conveys US-jurisdiction, multi-domain rigor,
     and the educational-only disclaimer that the legal HULEC pillar
-    requires. The `category` arg is currently unused but kept in the
-    signature so callers can opt into category tailoring later without
-    a portfolio-wide rebuild."""
-    del category  # reserved for future per-category tailoring
+    requires. The category-specific sentence makes the decision boundary and
+    required verification route visible without claiming certification."""
+    category_boundary = {
+        'legal': (
+            'Not legal advice. Verify current rules with official sources or '
+            'legal aid in your jurisdiction.'
+        ),
+        'financial': (
+            'Not financial or investment advice. Verify important claims '
+            'independently with current official sources.'
+        ),
+        'healthcare': (
+            'Not medical advice. Confirm current eligibility and care '
+            'decisions with the official state agency or a qualified '
+            'healthcare professional.'
+        ),
+        'benefits': (
+            'This is not an eligibility determination. The responsible agency '
+            'determines eligibility; confirm current rules with the official '
+            'agency.'
+        ),
+        'housing': (
+            'This is not an eligibility or legal determination. Confirm '
+            'current rules with the official housing authority or legal aid.'
+        ),
+        'education': (
+            'Use de-identified scenarios only; educator and district review '
+            'remain required.'
+        ),
+        'newcomer': (
+            'Not immigration advice. Verify status, forms, and deadlines with '
+            'official agencies or a licensed professional.'
+        ),
+        'civic': (
+            'For human review only and not affiliated with a public agency; '
+            'the current official source and authorized human remain controlling.'
+        ),
+        'business': (
+            'No guarantee of funding or any outcome. Verify current '
+            'requirements with the official source.'
+        ),
+    }.get(category, '')
+    if slug in _CIVIC_ACCESS_SLUGS:
+        access_boundary = (
+            'Three previews are included, then Civic is $14.99 per month. '
+            'There are no automatic overage charges.'
+        )
+    else:
+        access_boundary = (
+            'Three previews are included, then Focus is $9.99 per month. '
+            'There are no automatic overage charges.'
+        )
     body = (
         'Built and operated in the U.S. with subject-matter rigor '
         'across legal, education, healthcare, civic, and benefits — '
         'always educational guidance, never legal/medical/tax advice. '
         'For decisions that affect your rights, money, or freedom, '
-        'consult a licensed professional in your jurisdiction.'
+        'consult a licensed professional in your jurisdiction. '
+        f'{category_boundary} {access_boundary}'
     )
     return (
         '<p style="text-align:center;color:#94a3b8;font-size:11.5px;'
         'padding:0 24px 4px;max-width:680px;margin:0 auto;line-height:1.6;">'
-        f'{body}</p>'
+        f'{body}<br>'
+        '<a href="/privacy">Privacy</a> &middot; '
+        '<a href="/terms">Terms</a> &middot; '
+        '<a href="https://www.freshskyai.com/contact" target="_blank" '
+        'rel="noopener">Contact</a></p>'
     )
 
 
@@ -402,7 +465,13 @@ a:hover{color:#b6f7ff}
 """
 
 
-def schema_snippet(brand: str, primary_url: str, category: str, description: str = '') -> str:
+def schema_snippet(
+    brand: str,
+    primary_url: str,
+    category: str,
+    description: str = '',
+    slug: str = '',
+) -> str:
     """JSON-LD structured data (schema.org). Tells Google this is a
     WebApplication / legal service / etc., improves rich-result eligibility."""
     import json as _json
@@ -420,10 +489,19 @@ def schema_snippet(brand: str, primary_url: str, category: str, description: str
         },
         'inLanguage': ['en', 'es', 'zh', 'ar', 'vi', 'tl', 'ko', 'ru', 'pt', 'hi', 'fr', 'tr'],
     }
+    civic = slug in _CIVIC_ACCESS_SLUGS
+    plan = 'Civic' if civic else 'Focus'
+    price = '14.99' if civic else '9.99'
     if app_type == 'WebApplication':
         data['applicationCategory'] = 'Utilities'
         data['operatingSystem'] = 'Web'
-        data['offers'] = {'@type': 'Offer', 'price': '0', 'priceCurrency': 'USD'}
+    data['offers'] = {
+        '@type': 'Offer',
+        'price': price,
+        'priceCurrency': 'USD',
+        'category': 'monthly subscription',
+        'description': f'Three previews included; {plan} monthly access after previews.',
+    }
     return f'<script type="application/ld+json">{_json.dumps(data, separators=(",", ":"))}</script>\n'
 
 
@@ -461,9 +539,9 @@ def install(app: Flask, *, slug: str, brand: str, primary_url: str, category: st
     register_legal_routes(app, brand=brand, primary_url=primary_url)
 
     og = og_snippet(brand, primary_url, description)
-    schema = schema_snippet(brand, primary_url, category, description)
+    schema = schema_snippet(brand, primary_url, category, description, slug)
     cross_promo = cross_promo_html(slug, category)
-    trust_line = trust_line_html(category)
+    trust_line = trust_line_html(category, slug)
     faq_schema = faq_schema_html(category)
     ad_snippet = adsense_snippet(category)
 

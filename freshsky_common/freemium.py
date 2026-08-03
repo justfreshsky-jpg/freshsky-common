@@ -57,6 +57,12 @@ from flask import (
 logger = logging.getLogger(__name__)
 
 PLAN_RANK = {'focus': 1, 'civic': 2, 'plus': 3, 'advanced': 4}
+WORKSPACE_IDS = {'funding', 'education', 'civic', 'action_packs', 'utilities'}
+PLAN_WORKSPACES = {
+    'civic': {'civic'},
+    'plus': {'education', 'action_packs', 'utilities'},
+    'advanced': WORKSPACE_IDS,
+}
 PLAN_LIMITS = {
     'focus': {'daily': 30, 'monthly': 300},
     'civic': {'daily': 75, 'monthly': 900},
@@ -90,19 +96,10 @@ def subscription_item_tier(
         product.get('metadata', {}) if isinstance(product, dict)
         else getattr(product, 'metadata', {}) or {}
     )
-    tier = str(
-        metadata.get('freshsky_tier') or metadata.get('tier') or ''
-    ).strip().lower()
+    tier = str(metadata.get('freshsky_tier') or '').strip().lower()
     if tier in PLAN_RANK:
         return tier
 
-    name = str(
-        product.get('name', '') if isinstance(product, dict)
-        else getattr(product, 'name', '')
-    ).strip().lower()
-    for candidate in PLAN_RANK:
-        if name.startswith(f'freshsky {candidate}'):
-            return candidate
     return ''
 
 
@@ -169,7 +166,12 @@ def consume_paid_identity(identity: str, tier: str) -> tuple[bool, dict]:
     return consume(transaction)
 
 
-def _consume_paid_allowance(email: str, tier: str, signing_key: str) -> tuple[bool, dict]:
+def _consume_paid_allowance(
+    email: str,
+    tier: str,
+    signing_key: str,
+    workspace_id: str = '',
+) -> tuple[bool, dict]:
     """Consume one paid run locally on the hub or via its signed central meter."""
     identity = hmac.new(
         signing_key.encode('utf-8'),
@@ -189,6 +191,8 @@ def _consume_paid_allowance(email: str, tier: str, signing_key: str) -> tuple[bo
     import requests
 
     body = {'identity': identity, 'tier': tier}
+    if workspace_id:
+        body['workspace_id'] = workspace_id
     encoded = json.dumps(
         body, separators=(',', ':'), sort_keys=True
     ).encode('utf-8')
@@ -232,6 +236,7 @@ def register_freemium(
     subscription_tier: str = '',
     subscription_price_id: str = '',
     subscription_amount_cents: int = 0,
+    workspace_id: str = '',
     free_request_limit: Optional[int] = None,
     gate_all_post: bool = False,
 ) -> Callable[[], Optional[Response]]:
@@ -268,6 +273,11 @@ def register_freemium(
     subscription_tier = (
         subscription_tier or os.environ.get('FRESHSKY_SUBSCRIPTION_TIER', '')
     ).strip().lower()
+    workspace_id = (
+        workspace_id or os.environ.get('FRESHSKY_WORKSPACE_ID', '')
+    ).strip().lower().replace('-', '_')
+    if workspace_id and workspace_id not in WORKSPACE_IDS:
+        raise ValueError(f'unknown FreshSky workspace: {workspace_id}')
     subscription_price_id = (
         subscription_price_id or os.environ.get('FRESHSKY_SUBSCRIPTION_PRICE_ID', '')
     ).strip()
@@ -315,14 +325,30 @@ def register_freemium(
         return host in _STATIC_COMMUNITY_HOSTS
 
     # ─── GATE FUNCTION ───────────────────────────────────────────
-    def _tier_allows(entitled_tier: str) -> bool:
-        return PLAN_RANK.get(entitled_tier, 0) >= PLAN_RANK.get(subscription_tier, 0)
+    def _tier_allows(
+        entitled_tier: str,
+        selected_workspace: str = '',
+    ) -> bool:
+        """Apply workspace entitlements instead of treating plans as a ladder."""
+        if not workspace_id:
+            return PLAN_RANK.get(entitled_tier, 0) >= PLAN_RANK.get(
+                subscription_tier, 0
+            )
+        if entitled_tier == 'focus':
+            return bool(
+                selected_workspace
+                and hmac.compare_digest(selected_workspace, workspace_id)
+            )
+        return workspace_id in PLAN_WORKSPACES.get(entitled_tier, set())
 
     def _session_subscription_tier() -> str:
         tier = str(session.get('subscription_tier') or '').lower()
+        selected_workspace = str(
+            session.get('subscription_workspace') or ''
+        ).strip().lower()
         if (
             subscription_ready
-            and _tier_allows(tier)
+            and _tier_allows(tier, selected_workspace)
             and float(session.get('subscription_checked_at') or 0) > time.time() - 300
         ):
             return tier
@@ -342,6 +368,7 @@ def register_freemium(
             stripe.api_key = stripe_secret_key
             customers = stripe.Customer.list(email=email, limit=10)
             best_tier = ''
+            best_workspace = ''
             for customer in customers.data:
                 subscriptions = stripe.Subscription.list(
                     customer=customer.id,
@@ -353,6 +380,12 @@ def register_freemium(
                     status = getattr(item, 'status', '')
                     if status not in {'active', 'trialing'}:
                         continue
+                    subscription_metadata = getattr(item, 'metadata', {}) or {}
+                    selected_workspace = str(
+                        subscription_metadata.get('workspace_id')
+                        or subscription_metadata.get('freshsky_workspace')
+                        or ''
+                    ).strip().lower().replace('-', '_')
                     for sub_item in getattr(getattr(item, 'items', None), 'data', []):
                         tier = subscription_item_tier(
                             sub_item, subscription_price_id, subscription_tier
@@ -367,10 +400,15 @@ def register_freemium(
                                 subscription_tier,
                                 product_override=product,
                             )
-                        if PLAN_RANK.get(tier, 0) > PLAN_RANK.get(best_tier, 0):
+                        if (
+                            _tier_allows(tier, selected_workspace)
+                            and PLAN_RANK.get(tier, 0) > PLAN_RANK.get(best_tier, 0)
+                        ):
                             best_tier = tier
-            if _tier_allows(best_tier):
+                            best_workspace = selected_workspace
+            if _tier_allows(best_tier, best_workspace if best_tier else ''):
                 session['subscription_tier'] = best_tier
+                session['subscription_workspace'] = best_workspace
                 session['subscription_checked_at'] = time.time()
                 return best_tier
         except Exception as exc:
@@ -392,7 +430,7 @@ def register_freemium(
                 return None
             try:
                 allowed, usage = _consume_paid_allowance(
-                    email, entitled_tier, usage_hmac_key
+                    email, entitled_tier, usage_hmac_key, workspace_id
                 )
             except Exception as exc:
                 logger.error('Paid usage meter failed closed: %s', exc)
@@ -552,6 +590,11 @@ def register_freemium(
                     }
                 },
             }
+            if workspace_id:
+                args['metadata']['workspace_id'] = workspace_id
+                args['metadata']['freshsky_workspace'] = workspace_id
+                args['subscription_data']['metadata']['workspace_id'] = workspace_id
+                args['subscription_data']['metadata']['freshsky_workspace'] = workspace_id
             email = (session.get('user_email') or '').lower()
             if email:
                 args['customer_email'] = email
@@ -586,6 +629,13 @@ def register_freemium(
                 and getattr(checkout, 'subscription', None)
                 and metadata.get('app_host') == primary_host
                 and metadata.get('tier') == subscription_tier
+                and (
+                    not workspace_id
+                    or (
+                        metadata.get('workspace_id') == workspace_id
+                        and metadata.get('freshsky_workspace') == workspace_id
+                    )
+                )
                 and email
             )
             if not verified:
@@ -594,6 +644,8 @@ def register_freemium(
             session['user_email'] = email
             session.setdefault('user_name', email.split('@')[0])
             session['subscription_tier'] = subscription_tier
+            if workspace_id:
+                session['subscription_workspace'] = workspace_id
             session['subscription_checked_at'] = time.time()
             return redirect(f'{primary_url}/?checkout=success', code=303)
         except Exception as exc:
@@ -668,7 +720,7 @@ def register_freemium(
     # their own static/ directory.
     import importlib.resources as _ir
 
-    _access_bundle_path = '/freshsky-access-v053.js'
+    _access_bundle_path = '/freshsky-access-v061.js'
 
     def _freemium_js_response():
         try:
@@ -743,6 +795,7 @@ def register_freemium(
             'subscription_enabled': subscription_ready,
             'subscription_tier': display_tier or None,
             'required_subscription_tier': subscription_tier or None,
+            'workspace_id': workspace_id or None,
             'subscription_price_cents': subscription_amount_cents or None,
             'paid_daily_limit': limits.get('daily'),
             'paid_monthly_limit': limits.get('monthly'),
