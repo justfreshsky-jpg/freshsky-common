@@ -90,6 +90,14 @@ _DUPLICATE_BLOCKING_STATUSES = frozenset({
     'incomplete',
     'paused',
 })
+_GOOGLE_SUBJECT_RE = re.compile(r"^[A-Za-z0-9._~-]{1,255}$")
+
+
+def _validated_google_subject(value: Any) -> str:
+    """Return Google's immutable OIDC subject after strict local validation."""
+    if not isinstance(value, str) or not _GOOGLE_SUBJECT_RE.fullmatch(value):
+        raise ValueError("Google ID token subject is invalid")
+    return value
 
 
 def _stripe_field(value: Any, name: str, default: Any = None) -> Any:
@@ -948,6 +956,10 @@ def register_freemium(
             return redirect(url_for('index'))
         email = (info.get('email') or '').lower()
         name = info.get('name', email.split('@')[0] if email else '')
+        try:
+            google_subject = _validated_google_subject(info.get('sub'))
+        except ValueError:
+            return redirect(url_for('index'))
         if not email or info.get('email_verified') is not True:
             return redirect(url_for('index'))
         next_url = session.get('oauth_next', '')
@@ -957,6 +969,8 @@ def register_freemium(
         session['user_email'] = email
         session['user_name'] = name
         session['user_email_verified'] = True
+        session['user_identity_provider'] = 'google'
+        session['user_identity_subject'] = google_subject
         if next_url.startswith('/') and not next_url.startswith('//'):
             return redirect(next_url)
         return redirect(url_for('index'))

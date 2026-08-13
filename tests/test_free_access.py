@@ -1625,6 +1625,87 @@ def test_google_login_can_use_a_separate_auth_broker_callback_base():
     assert status["auth_broker_enabled"] is True
 
 
+def test_google_callback_retains_verified_immutable_subject(monkeypatch):
+    app = make_app(
+        google_client_id="client.apps.googleusercontent.com",
+        google_client_secret="secret",
+        primary_url="https://www.freshskyai.com",
+    )
+    client = app.test_client()
+    started = client.get("/auth/google")
+    query = parse_qs(urlparse(started.location).query)
+
+    class TokenResponse:
+        @staticmethod
+        def raise_for_status():
+            return None
+
+        @staticmethod
+        def json():
+            return {"id_token": "signed-id-token"}
+
+    monkeypatch.setattr("requests.post", lambda *_args, **_kwargs: TokenResponse())
+    monkeypatch.setattr(
+        "google.oauth2.id_token.verify_oauth2_token",
+        lambda *_args, **_kwargs: {
+            "sub": "109876543210987654321",
+            "email": "Person@Example.com",
+            "email_verified": True,
+            "name": "Person",
+            "nonce": query["nonce"][0],
+        },
+    )
+
+    completed = client.get(
+        "/auth/google/callback",
+        query_string={"code": "oauth-code", "state": query["state"][0]},
+    )
+
+    assert completed.status_code == 302
+    with client.session_transaction() as user_session:
+        assert user_session["user_email"] == "person@example.com"
+        assert user_session["user_identity_provider"] == "google"
+        assert user_session["user_identity_subject"] == "109876543210987654321"
+
+
+@pytest.mark.parametrize(
+    "subject", ["", "has space", " padded", "bad/subject", "x" * 256, 123]
+)
+def test_google_callback_rejects_invalid_subject(monkeypatch, subject):
+    app = make_app(
+        google_client_id="client.apps.googleusercontent.com",
+        google_client_secret="secret",
+        primary_url="https://www.freshskyai.com",
+    )
+    client = app.test_client()
+    started = client.get("/auth/google")
+    query = parse_qs(urlparse(started.location).query)
+
+    response = SimpleNamespace(
+        raise_for_status=lambda: None,
+        json=lambda: {"id_token": "signed-id-token"},
+    )
+    monkeypatch.setattr("requests.post", lambda *_args, **_kwargs: response)
+    monkeypatch.setattr(
+        "google.oauth2.id_token.verify_oauth2_token",
+        lambda *_args, **_kwargs: {
+            "sub": subject,
+            "email": "person@example.com",
+            "email_verified": True,
+            "nonce": query["nonce"][0],
+        },
+    )
+
+    completed = client.get(
+        "/auth/google/callback",
+        query_string={"code": "oauth-code", "state": query["state"][0]},
+    )
+
+    assert completed.status_code == 302
+    with client.session_transaction() as user_session:
+        assert "user_identity_subject" not in user_session
+
+
 def test_auth_broker_url_rejects_non_https_remote_hosts():
     with pytest.raises(ValueError, match="must be HTTPS"):
         make_app(

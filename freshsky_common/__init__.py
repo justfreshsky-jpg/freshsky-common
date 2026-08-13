@@ -45,7 +45,7 @@ from .runtime_policy import (
 )
 
 
-__version__ = "0.6.3"
+__version__ = "0.6.7"
 
 __all__ = [
     "AgentRun",
