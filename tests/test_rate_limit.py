@@ -28,9 +28,9 @@ def test_free_access_still_applies_abuse_protection():
     assert int(limited.headers["Retry-After"]) > 0
 
 
-def test_owner_session_bypasses_optional_abuse_limit():
+def test_owner_session_does_not_bypass_optional_abuse_limit():
     client = make_app(owner_email="owner@example.com").test_client()
     with client.session_transaction() as state:
         state["user_email"] = "owner@example.com"
-    for _ in range(3):
-        assert client.post("/api/generate").status_code == 200
+    assert client.post("/api/generate").status_code == 200
+    assert client.post("/api/generate").status_code == 429

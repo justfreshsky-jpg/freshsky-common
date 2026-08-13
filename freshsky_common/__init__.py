@@ -3,7 +3,10 @@
 Modules:
     llm        — Multi-provider LLM fallback chain; no direct Gemini provider.
     auth       — Google OAuth helpers.
-    freemium   — Free-access UI, OAuth, donation billing, and email capture.
+    freemium   — Preview access, OAuth, subscription billing, and email capture.
+    checkout_store — Durable pseudonymous pending Stripe Checkout reservations.
+    entitlements — Workspace access and deterministic usage-unit quotas.
+    agent_runtime — Validated AgentRun and SourceRecord audit envelopes.
     security   — Security headers + sanitization helpers.
     caching    — Simple in-memory response cache.
     rate_limit — Token-bucket / per-IP rate limiter.
@@ -11,4 +14,64 @@ Modules:
     revenue    — GA4 + SEO routes (sitemap.xml, robots.txt) and portfolio links.
 """
 
-__version__ = "0.5.0"
+from .agent_runtime import AgentRun, AgentRunStatus, ArtifactRecord, SourceRecord
+from .checkout_store import (
+    CheckoutStore,
+    CheckoutStoreConflict,
+    CheckoutStoreCorrupt,
+    CheckoutStoreUnavailable,
+    FirestoreCheckoutStore,
+    MemoryCheckoutStore,
+    PendingCheckout,
+    checkout_fingerprint,
+)
+from .entitlements import (
+    InMemoryQuotaLedger,
+    PlanEntitlement,
+    PlanTier,
+    QuotaDecision,
+    QuotaExhausted,
+    QuotaReservation,
+    UsageSnapshot,
+    evaluate_quota,
+    resolve_entitlement,
+    user_status_fields,
+)
+from .runtime_policy import (
+    WORKFLOW_BUDGETS,
+    WorkflowBudget,
+    WorkflowClass,
+    WorkspaceId,
+)
+
+
+__version__ = "0.6.8"
+
+__all__ = [
+    "AgentRun",
+    "AgentRunStatus",
+    "ArtifactRecord",
+    "CheckoutStore",
+    "CheckoutStoreConflict",
+    "CheckoutStoreCorrupt",
+    "CheckoutStoreUnavailable",
+    "FirestoreCheckoutStore",
+    "InMemoryQuotaLedger",
+    "MemoryCheckoutStore",
+    "PendingCheckout",
+    "PlanEntitlement",
+    "PlanTier",
+    "QuotaDecision",
+    "QuotaExhausted",
+    "QuotaReservation",
+    "SourceRecord",
+    "UsageSnapshot",
+    "WORKFLOW_BUDGETS",
+    "WorkflowBudget",
+    "WorkflowClass",
+    "WorkspaceId",
+    "checkout_fingerprint",
+    "evaluate_quota",
+    "resolve_entitlement",
+    "user_status_fields",
+]

@@ -17,6 +17,10 @@
     link.id = 'freshsky-visual-system';
     link.rel = 'stylesheet';
     link.href = '/freshsky.css';
+    link.addEventListener('load', function() {
+      var currentBar = document.getElementById('freemium-bar');
+      if (currentBar) syncBarOffset(currentBar);
+    });
     document.head.appendChild(link);
   }
 
@@ -54,6 +58,31 @@
       'Unlock · $' + dollars + '/month</a>';
   }
 
+  function syncBarOffset(bar) {
+    var measuredHeight = Math.ceil(bar.getBoundingClientRect().height || 0);
+    document.body.style.paddingTop = Math.max(54, measuredHeight) + 'px';
+  }
+
+  function watchBarOffset(bar) {
+    syncBarOffset(bar);
+    if (window.ResizeObserver) {
+      if (!window.__freemiumBarResizeObserver) {
+        window.__freemiumBarResizeObserver = new ResizeObserver(function(entries) {
+          entries.forEach(function(entry) {
+            if (entry.target && entry.target.id === 'freemium-bar') {
+              syncBarOffset(entry.target);
+            }
+          });
+        });
+      }
+      window.__freemiumBarResizeObserver.disconnect();
+      window.__freemiumBarResizeObserver.observe(bar);
+    } else {
+      window.setTimeout(function() { syncBarOffset(bar); }, 50);
+      window.setTimeout(function() { syncBarOffset(bar); }, 250);
+    }
+  }
+
   function renderBar() {
     var bar = document.getElementById('freemium-bar');
     if (!bar) {
@@ -65,7 +94,6 @@
         'border-bottom:1px solid rgba(125,150,210,0.18);color:#cbd5e1;' +
         'font-family:Inter,system-ui,-apple-system,sans-serif;';
       document.body.prepend(bar);
-      document.body.style.paddingTop = '54px';
     }
 
     var host = (window.location && window.location.host || '').toLowerCase();
@@ -96,6 +124,20 @@
           'target="_blank" rel="noopener">Fresh Sky AI</a>' +
         '<div class="fs-access-actions">' + user + access + action + account + '</div>' +
       '</div>';
+    watchBarOffset(bar);
+    if (window.requestAnimationFrame) {
+      window.requestAnimationFrame(function() { syncBarOffset(bar); });
+    }
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(function() { syncBarOffset(bar); });
+    }
+    if (!window.__freemiumResizeBound) {
+      window.__freemiumResizeBound = true;
+      window.addEventListener('resize', function() {
+        var currentBar = document.getElementById('freemium-bar');
+        if (currentBar) syncBarOffset(currentBar);
+      });
+    }
   }
 
   window.handleFreemiumResponse = function(response, outputElement) {

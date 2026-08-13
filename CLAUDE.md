@@ -5,6 +5,11 @@ Pip-installable from git (`freshsky-common @ git+https://github.com/justfreshsky
 ## Modules
 - **`security.py`** — `install_security_headers(app)`: CSP, HSTS, X-Frame-Options, Referrer-Policy, etc.
 - **`rate_limit.py`** — simple in-memory rate limiter (per-IP).
+- **`runtime_policy.py`** — canonical five-workspace IDs and immutable agent
+  workflow weights/ceilings.
+- **`entitlements.py`** — server-side workspace access plus deterministic
+  usage-unit reservation/reconciliation policy.
+- **`agent_runtime.py`** — validated `AgentRun` and `SourceRecord` audit types.
 - **`llm.py`** — unified provider fallback. Mistral requires `MISTRAL_TRAINING_OPTOUT_CONFIRMED=true`; OpenRouter requests no collection and ZDR.
 - **`privacy.py`** — `education_deidentified` profile, likely student-PII detection, and fail-closed `SensitiveDataError`. Education routing permits Cloudflare, Ollama, Cerebras, Groq only with `GROQ_ZDR_CONFIRMED=true`, and SambaNova.
 - **`caching.py`** — memoization helpers for prompt + response caching.
