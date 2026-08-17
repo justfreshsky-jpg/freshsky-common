@@ -20,7 +20,6 @@ Usage in app.py::
         app,
         google_client_id=os.environ['GOOGLE_CLIENT_ID'],
         google_client_secret=os.environ['GOOGLE_CLIENT_SECRET'],
-        stripe_secret_key=os.environ.get('STRIPE_SECRET_KEY', ''),
         stripe_webhook_secret=os.environ.get('STRIPE_WEBHOOK_SECRET', ''),
         primary_url='https://foia.freshskyai.com/',
     )
@@ -91,6 +90,31 @@ _DUPLICATE_BLOCKING_STATUSES = frozenset({
     'paused',
 })
 _GOOGLE_SUBJECT_RE = re.compile(r"^[A-Za-z0-9._~-]{1,255}$")
+
+
+def _select_stripe_runtime_key(
+    explicit_key: str,
+    *,
+    managed_runtime: bool,
+) -> str:
+    """Prefer the least-privilege runtime key without exposing key material."""
+    restricted = os.environ.get('STRIPE_RUNTIME_RESTRICTED_KEY', '')
+    legacy = os.environ.get('STRIPE_SECRET_KEY', '')
+    if restricted:
+        if restricted != restricted.strip():
+            raise ValueError('Stripe runtime restricted key is malformed')
+        if managed_runtime and not restricted.startswith('rk_live_'):
+            raise ValueError('managed Stripe runtime key must be live restricted')
+        if managed_runtime and legacy:
+            raise ValueError('managed Stripe runtime has a forbidden legacy key')
+        if managed_runtime:
+            if explicit_key and explicit_key != restricted:
+                raise ValueError(
+                    'managed Stripe runtime key configuration conflicts'
+                )
+            return restricted
+        return explicit_key or restricted
+    return explicit_key or legacy
 
 
 def _validated_google_subject(value: Any) -> str:
@@ -469,18 +493,21 @@ def register_freemium(
     install_brand_assets(app)
     google_client_id = google_client_id or os.environ.get('GOOGLE_CLIENT_ID', '')
     google_client_secret = google_client_secret or os.environ.get('GOOGLE_CLIENT_SECRET', '')
-    stripe_secret_key = stripe_secret_key or os.environ.get('STRIPE_SECRET_KEY', '')
+    managed_runtime = bool(
+        os.environ.get('K_SERVICE')
+        or os.environ.get('FRESHSKY_ENV', '').strip().lower()
+        in {'prod', 'production'}
+    )
+    stripe_secret_key = _select_stripe_runtime_key(
+        stripe_secret_key,
+        managed_runtime=managed_runtime,
+    )
     stripe_webhook_secret = (
         stripe_webhook_secret or os.environ.get('STRIPE_WEBHOOK_SECRET', '')
     )
     dedicated_usage_hmac_key = os.environ.get(
         'FRESHSKY_USAGE_HMAC_KEY', ''
     ).strip()
-    managed_runtime = bool(
-        os.environ.get('K_SERVICE')
-        or os.environ.get('FRESHSKY_ENV', '').strip().lower()
-        in {'prod', 'production'}
-    )
     if (
         managed_runtime
         and pending_checkout_store is not None

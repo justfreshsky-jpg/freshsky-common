@@ -149,6 +149,15 @@ stable Stripe idempotency key. The reservation fingerprint binds the exact
 application host, tier, workspace, and server-selected Price ID, while the
 stored record contains no raw email address, Checkout URL, or credential.
 
+Managed services should bind the least-privilege live Stripe key through
+`STRIPE_RUNTIME_RESTRICTED_KEY`. When present, it must be an unpadded
+`rk_live_` value and takes precedence over the legacy argument. A managed
+runtime fails closed if `STRIPE_SECRET_KEY` is also present or if an explicit
+different key conflicts. Services that have not migrated continue to use the
+legacy key as a compatibility fallback; remove that fallback from each
+revision only after its restricted-key permissions and request log have been
+verified.
+
 `SourceRecord` has explicit official URL, jurisdiction, effective/retrieval
 dates, SHA-256 content hash, license, next-review date, and reviewer fields
 (while retaining `uri`, `retrieved_at`, and `sha256` aliases). `AgentRun`

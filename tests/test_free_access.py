@@ -33,6 +33,65 @@ def make_app(**freemium_options):
     return app
 
 
+def test_managed_runtime_prefers_live_restricted_key(monkeypatch):
+    monkeypatch.setenv("K_SERVICE", "foiahelper")
+    monkeypatch.setenv("STRIPE_RUNTIME_RESTRICTED_KEY", "rk_live_runtime_only")
+    monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
+
+    selected = freemium._select_stripe_runtime_key(
+        "", managed_runtime=True
+    )
+
+    assert selected == "rk_live_runtime_only"
+
+
+@pytest.mark.parametrize(
+    ("restricted", "legacy", "explicit"),
+    [
+        ("rk_test_wrong_environment", "", ""),
+        (" rk_live_padded", "", ""),
+        ("rk_live_runtime_only", "sk_live_legacy", ""),
+        ("rk_live_runtime_only", "", "sk_live_explicit"),
+    ],
+)
+def test_managed_runtime_rejects_unsafe_stripe_key_shapes(
+    monkeypatch, restricted, legacy, explicit
+):
+    monkeypatch.setenv("STRIPE_RUNTIME_RESTRICTED_KEY", restricted)
+    if legacy:
+        monkeypatch.setenv("STRIPE_SECRET_KEY", legacy)
+    else:
+        monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
+
+    with pytest.raises(ValueError) as captured:
+        freemium._select_stripe_runtime_key(
+            explicit, managed_runtime=True
+        )
+
+    message = str(captured.value)
+    assert restricted not in message
+    assert not legacy or legacy not in message
+    assert not explicit or explicit not in message
+
+
+def test_legacy_key_remains_a_compatible_fallback(monkeypatch):
+    monkeypatch.delenv("STRIPE_RUNTIME_RESTRICTED_KEY", raising=False)
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_legacy")
+
+    assert freemium._select_stripe_runtime_key(
+        "", managed_runtime=False
+    ) == "sk_test_legacy"
+
+
+def test_local_explicit_test_key_does_not_use_live_environment(monkeypatch):
+    monkeypatch.setenv("STRIPE_RUNTIME_RESTRICTED_KEY", "rk_live_environment")
+    monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
+
+    assert freemium._select_stripe_runtime_key(
+        "sk_test_explicit", managed_runtime=False
+    ) == "sk_test_explicit"
+
+
 def test_disabled_subscription_routes_return_to_app():
     client = make_app().test_client()
     monthly = client.get("/subscribe")
