@@ -62,9 +62,14 @@ from .checkout_store import (
     MemoryCheckoutStore,
     checkout_fingerprint,
 )
+from .stripe_client import build_stripe_api
 
 
 logger = logging.getLogger(__name__)
+
+STRIPE_INTEGRATION_IDENTIFIER = (
+    "freshsky_common_subscriptions_kpjvthmq"
+)
 
 PLAN_RANK = {'focus': 1, 'civic': 2, 'plus': 3, 'advanced': 4}
 PLAN_LIMITS = {
@@ -697,7 +702,7 @@ def register_freemium(
             return ''
         try:
             import stripe
-            stripe.api_key = stripe_secret_key
+            stripe = build_stripe_api(stripe, stripe_secret_key)
             customers = stripe.Customer.list(email=email, limit=10)
             best_tier = ''
             best_focus_workspace = ''
@@ -1066,7 +1071,7 @@ def register_freemium(
             )
         try:
             import stripe
-            stripe.api_key = stripe_secret_key
+            stripe = build_stripe_api(stripe, stripe_secret_key)
             if _has_blocking_freshsky_subscription(
                 stripe,
                 email,
@@ -1161,6 +1166,7 @@ def register_freemium(
                 metadata['freshsky_workspace'] = checkout_workspace
             args = {
                 'mode': 'subscription',
+                'integration_identifier': STRIPE_INTEGRATION_IDENTIFIER,
                 'line_items': [{'price': subscription_price_id, 'quantity': 1}],
                 'success_url': (
                     f'{primary_url}/subscription/success'
@@ -1214,7 +1220,7 @@ def register_freemium(
             return redirect(f'{primary_url}/?checkout=unverified', code=302)
         try:
             import stripe
-            stripe.api_key = stripe_secret_key
+            stripe = build_stripe_api(stripe, stripe_secret_key)
             checkout = stripe.checkout.Session.retrieve(checkout_id)
             raw_metadata = _stripe_field(checkout, 'metadata', {}) or {}
             metadata = _stripe_mapping(raw_metadata) or {}
@@ -1279,7 +1285,7 @@ def register_freemium(
             return redirect(url_for('freemium_google_login', next='/billing'))
         try:
             import stripe
-            stripe.api_key = stripe_secret_key
+            stripe = build_stripe_api(stripe, stripe_secret_key)
             customers = stripe.Customer.list(email=session['user_email'], limit=1)
             if not customers.data:
                 return redirect(url_for('index'), code=302)
@@ -1302,7 +1308,7 @@ def register_freemium(
             return '', 503
         try:
             import stripe
-            stripe.api_key = stripe_secret_key
+            stripe = build_stripe_api(stripe, stripe_secret_key)
             event = stripe.Webhook.construct_event(
                 request.data, request.headers.get('Stripe-Signature', ''),
                 stripe_webhook_secret,
