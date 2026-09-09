@@ -1137,10 +1137,10 @@ def test_versioned_access_bundle_replaces_stable_script_path():
     client = app.test_client()
     page = client.get("/")
     assert page.status_code == 200
-    assert 'src="/freshsky-access-v061.js"' in page.get_data(as_text=True)
+    assert 'src="/freshsky-access-v062.js"' in page.get_data(as_text=True)
     assert 'src="/freemium.js"' not in page.get_data(as_text=True)
 
-    bundle = client.get("/freshsky-access-v061.js")
+    bundle = client.get("/freshsky-access-v062.js")
     assert bundle.status_code == 200
     bundle_text = bundle.get_data(as_text=True)
     assert "installVisualSystem" in bundle_text
@@ -1169,7 +1169,7 @@ def test_versioned_access_bundle_replaces_any_stable_query_string():
 
     body = app.test_client().get("/").get_data(as_text=True)
 
-    assert 'src="/freshsky-access-v061.js"' in body
+    assert 'src="/freshsky-access-v062.js"' in body
     assert "/freemium.js?" not in body
 
 
@@ -1179,8 +1179,8 @@ def test_versioned_access_bundle_is_injected_when_template_has_no_script():
 
     page = app.test_client().get("/")
     body = page.get_data(as_text=True)
-    assert body.count('src="/freshsky-access-v061.js"') == 1
-    assert body.index("<main>") < body.index('src="/freshsky-access-v061.js"')
+    assert body.count('src="/freshsky-access-v062.js"') == 1
+    assert body.index("<main>") < body.index('src="/freshsky-access-v062.js"')
 
 
 def test_optional_global_post_gate_counts_three_previews():
