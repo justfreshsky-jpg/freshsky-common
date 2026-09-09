@@ -5,6 +5,7 @@ import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
+from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
 
@@ -43,6 +44,17 @@ def test_managed_runtime_prefers_live_restricted_key(monkeypatch):
     )
 
     assert selected == "rk_live_runtime_only"
+
+
+def test_shared_public_access_copy_uses_neutral_operating_language():
+    script = (
+        Path(__file__).resolve().parents[1]
+        / "freshsky_common"
+        / "static"
+        / "freemium.js"
+    ).read_text(encoding="utf-8")
+    assert "HULEC operating standard" in script
+    assert "halal" not in script.casefold()
 
 
 @pytest.mark.parametrize(
