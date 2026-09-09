@@ -48,7 +48,7 @@
 
   function communityLink() {
     return '<a href="https://www.freshskyai.com/#why" target="_blank" rel="noopener" ' +
-      'class="fs-access-link">HULEC + halal standard</a>';
+      'class="fs-access-link">HULEC operating standard</a>';
   }
 
   function planLink() {
@@ -190,7 +190,7 @@
       mark.innerHTML =
         '<div class="fs-hub-mark-inner">' +
           '<strong>Fresh Sky AI</strong> · Human-centered · Unique · Legal · Efficient · Cheap<br>' +
-          'HULEC + halal-conscious: transparent monthly pricing, no hidden fees, no interest-based financing, no gambling mechanics, no sale of prompt data, and no religious-certification claim. ' +
+          'HULEC operating standard: transparent monthly pricing, no hidden fees, no interest-based financing, no gambling mechanics, and no sale of prompt data. ' +
           (STATE.subscription_enabled
             ? '<a href="/subscribe" data-fs-event="subscription_clicked">View this app&rsquo;s monthly plan</a>'
             : '<a href="https://www.freshskyai.com/#why" target="_blank" rel="noopener">Read the HULEC standard</a>') +
