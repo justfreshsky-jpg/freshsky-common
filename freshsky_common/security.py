@@ -49,8 +49,8 @@ def install_security_headers(
     override the default.
     """
 
-    if csp == DEFAULT_CSP:
-        csp = DEFAULT_CSP.replace(CANONICAL_ORIGIN, public_origin())
+    # Validate at startup, but choose public links for each exact request host.
+    public_origin()
 
     @app.after_request
     def _add_headers(resp):
@@ -66,7 +66,8 @@ def install_security_headers(
             "geolocation=(), microphone=(), camera=(), browsing-topics=()",
         )
         if csp:
-            resp.headers.setdefault("Content-Security-Policy", csp)
+            resp.headers.setdefault("Content-Security-Policy",
+                                    csp.replace(CANONICAL_ORIGIN, public_origin()) if csp == DEFAULT_CSP else csp)
         # Every production FreshSky surface is HTTPS-only. Setting HSTS
         # unconditionally also covers managed proxies that terminate TLS
         # before Flask and therefore report request.is_secure as false.
@@ -88,7 +89,7 @@ def install_security_headers(
     _PLANNER_SCRIPT = (
         '<script src="https://freshskyllc.org/static/planner.js" defer '
         'id="fs-planner-loader"></script>'
-    ).replace(CANONICAL_ORIGIN, public_origin())
+    )
 
     @app.after_request
     def _inject_planner(resp):
@@ -103,7 +104,7 @@ def install_security_headers(
             return resp
         if "fs-planner-loader" in body or "</body>" not in body:
             return resp
-        resp.set_data(body.replace("</body>", _PLANNER_SCRIPT + "</body>", 1))
+        resp.set_data(body.replace("</body>", _PLANNER_SCRIPT.replace(CANONICAL_ORIGIN, public_origin()) + "</body>", 1))
         return resp
 
     return app

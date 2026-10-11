@@ -56,8 +56,8 @@ def test_legacy_access_reference_is_upgraded_and_new_bundle_targets_org():
     freemium.register_freemium(app, primary_url='https://freshskyllc.org')
     client = app.test_client()
     page = client.get('/').text
-    assert page.count('/freshsky-access-v071.js') == 1
-    assert '/freshsky-access-v062.js' not in page
+    assert page.count('/freshsky-access-v062.js?version=071') == 1
+    assert 'src="/freshsky-access-v062.js"' not in page
     bundle = client.get('/freshsky-access-v071.js')
     assert 'https://freshskyllc.org/' in bundle.text
     assert 'https://www.freshskyai.com/' not in bundle.text
@@ -71,3 +71,31 @@ def test_legal_routes_serve_on_org_and_redirect_exact_legacy_subapps():
     subapp = Flask('subapp')
     register_legal_routes(subapp, brand='Tool', primary_url='https://forms.freshskyai.com')
     assert subapp.test_client().get('/privacy').location == 'https://freshskyllc.org/privacy'
+
+
+def test_explicit_hold_selects_public_links_by_exact_request_host(monkeypatch):
+    monkeypatch.setenv('FRESHSKY_PUBLIC_ORIGIN', 'https://www.freshskyai.com')
+    monkeypatch.setenv('FRESHSKY_LEGACY_DOMAIN_COMPATIBILITY', 'true')
+    app = Flask('cutover')
+    app.secret_key = 'test'
+    app.add_url_rule('/', 'index', lambda: '<body>Ready</body>')
+    install_security_headers(app)
+    register_legal_routes(app, brand='Fresh Sky', primary_url='https://freshskyllc.org')
+    freemium.register_freemium(app, primary_url='https://freshskyllc.org')
+    client = app.test_client()
+    assert public_origin() == 'https://www.freshskyai.com'  # background work
+    hosts = ['freshskyllc.org', 'www.freshskyllc.org', 'www.freshskyai.com',
+             'candidate.service.run.app', 'freshskyllc.org.evil.test',
+             'evil-freshskyllc.org', 'freshskyllc.org:8443']
+    for host in hosts:
+        canonical = host in {'freshskyllc.org', 'www.freshskyllc.org'}
+        origin = 'https://freshskyllc.org' if canonical else 'https://www.freshskyai.com'
+        headers = {'X-Forwarded-Host': 'freshskyllc.org'}
+        page = client.get('/', base_url=f'https://{host}', headers=headers)
+        assert f'src="{origin}/static/planner.js"' in page.text
+        assert origin in page.headers['Content-Security-Policy']
+        legal = client.get('/privacy', base_url=f'https://{host}', headers=headers)
+        assert f'href="{origin}/#products"' in legal.text
+        bundle = client.get('/freshsky-access-v071.js', base_url=f'https://{host}', headers=headers)
+        assert f'href="{origin}/"' in bundle.text
+        assert bundle.headers["Cache-Control"] == "no-store, max-age=0"

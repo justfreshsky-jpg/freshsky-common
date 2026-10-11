@@ -139,7 +139,7 @@ def register_legal_routes(app: Flask, *, brand: str, primary_url: str) -> None:
     # serves /privacy + /terms from its own templates and registers them
     # before this runs, so the idempotency guard below skips it (and the
     # explicit _is_hub check is belt-and-suspenders against a redirect loop).
-    _HUB = public_origin()
+    public_origin()  # Validate configuration at startup.
     # Hub is ONLY the apex/www host — NOT <app>.freshskyai.com sub-apps
     # (which also end in 'freshskyai.com'). Parse the host precisely.
     from urllib.parse import urlparse
@@ -152,23 +152,23 @@ def register_legal_routes(app: Flask, *, brand: str, primary_url: str) -> None:
             @app.route('/privacy')
             def _privacy():
                 return Response(
-                    _PRIVACY_TEMPLATE.format(brand=safe_brand, primary_url=safe_url, today=today, year=year, hub=_html.escape(_HUB)),
+                    _PRIVACY_TEMPLATE.format(brand=safe_brand, primary_url=safe_url, today=today, year=year, hub=_html.escape(public_origin())),
                     mimetype='text/html',
                 )
         else:
             @app.route('/privacy')
             def _privacy():
-                return redirect(f'{_HUB}/privacy', code=301)
+                return redirect(f'{public_origin()}/privacy', code=301)
 
     if not any(r.rule == '/terms' for r in app.url_map.iter_rules()):
         if _is_hub:
             @app.route('/terms')
             def _terms():
                 return Response(
-                    _TERMS_TEMPLATE.format(brand=safe_brand, primary_url=safe_url, today=today, year=year, hub=_html.escape(_HUB)),
+                    _TERMS_TEMPLATE.format(brand=safe_brand, primary_url=safe_url, today=today, year=year, hub=_html.escape(public_origin())),
                     mimetype='text/html',
                 )
         else:
             @app.route('/terms')
             def _terms():
-                return redirect(f'{_HUB}/terms', code=301)
+                return redirect(f'{public_origin()}/terms', code=301)

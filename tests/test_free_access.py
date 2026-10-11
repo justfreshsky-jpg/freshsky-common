@@ -1137,7 +1137,7 @@ def test_versioned_access_bundle_replaces_stable_script_path():
     client = app.test_client()
     page = client.get("/")
     assert page.status_code == 200
-    assert 'src="/freshsky-access-v071.js"' in page.get_data(as_text=True)
+    assert 'src="/freshsky-access-v062.js?version=071"' in page.get_data(as_text=True)
     assert 'src="/freemium.js"' not in page.get_data(as_text=True)
 
     bundle = client.get("/freshsky-access-v071.js")
@@ -1154,7 +1154,7 @@ def test_versioned_access_bundle_replaces_stable_script_path():
     assert "new ResizeObserver" in bundle_text
     assert "window.__freemiumBarResizeObserver.observe(bar)" in bundle_text
     assert "link.addEventListener('load'" in bundle_text
-    assert bundle.headers["Cache-Control"] == "public, max-age=31536000, immutable"
+    assert bundle.headers["Cache-Control"] == "no-store, max-age=0"
 
     compatibility = client.get("/freemium.js")
     assert compatibility.status_code == 200
@@ -1169,7 +1169,7 @@ def test_versioned_access_bundle_replaces_any_stable_query_string():
 
     body = app.test_client().get("/").get_data(as_text=True)
 
-    assert 'src="/freshsky-access-v071.js"' in body
+    assert 'src="/freshsky-access-v062.js?version=071"' in body
     assert "/freemium.js?" not in body
 
 
@@ -1179,8 +1179,8 @@ def test_versioned_access_bundle_is_injected_when_template_has_no_script():
 
     page = app.test_client().get("/")
     body = page.get_data(as_text=True)
-    assert body.count('src="/freshsky-access-v071.js"') == 1
-    assert body.index("<main>") < body.index('src="/freshsky-access-v071.js"')
+    assert body.count('src="/freshsky-access-v062.js?version=071"') == 1
+    assert body.index("<main>") < body.index('src="/freshsky-access-v062.js?version=071"')
 
 
 def test_optional_global_post_gate_counts_three_previews():

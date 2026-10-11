@@ -1346,7 +1346,8 @@ def register_freemium(
     # their own static/ directory.
     import importlib.resources as _ir
 
-    _access_bundle_path = '/freshsky-access-v071.js'
+    # The v062 route exists on the preceding baseline during split traffic.
+    _access_bundle_path = '/freshsky-access-v062.js?version=071'
 
     def _freemium_js_response():
         try:
@@ -1355,10 +1356,10 @@ def register_freemium(
             content = ''
         content = content.replace(CANONICAL_ORIGIN, public_origin())
         resp = Response(content, mimetype='application/javascript; charset=utf-8')
-        resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+        resp.headers['Cache-Control'] = 'no-store, max-age=0'
         return resp
 
-    app.add_url_rule(_access_bundle_path, 'freshsky_access_bundle_v071', _freemium_js_response)
+    app.add_url_rule('/freshsky-access-v071.js', 'freshsky_access_bundle_v071', _freemium_js_response)
     app.add_url_rule('/freshsky-access-v062.js', 'freshsky_access_bundle_v062', _freemium_js_response)
 
     @app.route('/freemium.js')
@@ -1384,7 +1385,7 @@ def register_freemium(
         if _access_bundle_path in body:
             return response
         body = re.sub(
-            r"""src=(["'])/(?:freemium|freshsky-access-v062)\.js(?:\?[^"']*)?\1""",
+            r"""src=(["'])/(?:freemium|freshsky-access-v062|freshsky-access-v071)\.js(?:\?[^"']*)?\1""",
             lambda match: (
                 f"src={match.group(1)}{_access_bundle_path}{match.group(1)}"
             ),
