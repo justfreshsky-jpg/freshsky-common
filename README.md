@@ -173,3 +173,30 @@ anonymous improvement data; Mistral remains excluded from the education profile.
 ## Adoption
 
 The library is already shared across the Fresh Sky hub, foundation apps, civic apps, and active batch apps. Keep app-specific operations in the consuming repos; this package should stay focused on runtime helpers.
+
+## Public domain consolidation (0.7.1)
+
+New shared public links, planner/CSP, central usage metering and billing redirects
+default to `https://freshskyllc.org`. This does not rename owner logins, OAuth
+clients, store packages, service IDs, or stored entitlements. Consumers must verify
+`.org` routing, OAuth and webhook configuration before adopting the new version.
+For a bounded deployment rollback only, both `FRESHSKY_PUBLIC_ORIGIN=https://www.freshskyai.com`
+and `FRESHSKY_LEGACY_DOMAIN_COMPATIBILITY=true` select the previous central origin.
+Other origin overrides fail closed. Exact legacy hub hosts remain recognized to
+avoid redirect loops; no wildcard or new cross-origin access is introduced.
+
+The access UI uses `/freshsky-access-v062.js?version=071` so the preceding
+baseline still serves it during split traffic; `/freshsky-access-v071.js` is an
+alias. All new-revision script responses are `no-store` because their public
+origin can differ by request host. An old baseline response may retain legacy
+public links in the old-origin cache during the hold; do not route the new .org
+origin to an old revision. The unversioned v062 route remains available
+for older templates and the response hook upgrades old script references. This
+source change is not a deployment or package publication.
+
+During a reviewed legacy hold, that same explicit pair uses canonical public
+links only when the actual Flask request host is exactly `freshskyllc.org` or
+`www.freshskyllc.org`. Canary/provider/legacy hosts and background work continue
+to use the legacy destination. `X-Forwarded-Host` is not read by this package.
+This permits a DNS cutover without changing the reviewed environment; it does
+not verify DNS or change authentication, callbacks, account ownership or audiences.

@@ -10,6 +10,7 @@ import datetime
 import html as _html
 
 from flask import Flask, Response, redirect
+from .public_identity import HUB_HOSTS, public_origin
 
 
 _PRIVACY_TEMPLATE = """<!DOCTYPE html>
@@ -63,12 +64,12 @@ _PRIVACY_TEMPLATE = """<!DOCTYPE html>
 <p>This tool is intended for adults (or the parents/guardians of children). We do not knowingly collect data from anyone under 13. If you believe a child has used the tool, contact us and we'll delete what we can.</p>
 
 <h2>Your rights</h2>
-<p>Because we don't collect personal information, there's nothing to delete or export. If you have a question about a specific request you made, or you believe we've made a mistake, contact us via the hub: <a href="https://www.freshskyai.com/contact">freshskyai.com/contact</a>.</p>
+<p>Because we don't collect personal information, there's nothing to delete or export. If you have a question about a specific request you made, or you believe we've made a mistake, contact us via the hub: <a href="{hub}/contact">freshskyllc.org/contact</a>.</p>
 
 <h2>Changes</h2>
 <p>If this policy changes meaningfully, we'll update the date at the top. We'll never quietly start collecting more.</p>
 
-<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/terms">Terms of Use</a> · <a href="https://www.freshskyai.com/#products">Plans</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
+<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/terms">Terms of Use</a> · <a href="{hub}/#products">Plans</a> · <a href="{hub}">freshskyllc.org</a></p>
 </body></html>"""
 
 
@@ -115,9 +116,9 @@ _TERMS_TEMPLATE = """<!DOCTYPE html>
 <p>We may update these terms. Continuing to use the tool after a change means you accept the new version. The date at the top tells you when the current version was published.</p>
 
 <h2>Contact</h2>
-<p>Questions, concerns, complaints, kudos: <a href="https://www.freshskyai.com/contact">freshskyai.com/contact</a>.</p>
+<p>Questions, concerns, complaints, kudos: <a href="{hub}/contact">freshskyllc.org/contact</a>.</p>
 
-<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/privacy">Privacy Policy</a> · <a href="https://www.freshskyai.com/#products">Plans</a> · <a href="https://www.freshskyai.com">freshskyai.com</a></p>
+<p style="margin-top:3rem;color:#94a3b8;font-size:.8rem;">© {year} Fresh Sky LLC · <a href="/privacy">Privacy Policy</a> · <a href="{hub}/#products">Plans</a> · <a href="{hub}">freshskyllc.org</a></p>
 </body></html>"""
 
 
@@ -138,36 +139,36 @@ def register_legal_routes(app: Flask, *, brand: str, primary_url: str) -> None:
     # serves /privacy + /terms from its own templates and registers them
     # before this runs, so the idempotency guard below skips it (and the
     # explicit _is_hub check is belt-and-suspenders against a redirect loop).
-    _HUB = 'https://www.freshskyai.com'
+    public_origin()  # Validate configuration at startup.
     # Hub is ONLY the apex/www host — NOT <app>.freshskyai.com sub-apps
     # (which also end in 'freshskyai.com'). Parse the host precisely.
     from urllib.parse import urlparse
     _host = (urlparse(primary_url if '//' in primary_url else f'https://{primary_url}')
              .hostname or '').lower()
-    _is_hub = _host in ('www.freshskyai.com', 'freshskyai.com')
+    _is_hub = _host in HUB_HOSTS
 
     if not any(r.rule == '/privacy' for r in app.url_map.iter_rules()):
         if _is_hub:
             @app.route('/privacy')
             def _privacy():
                 return Response(
-                    _PRIVACY_TEMPLATE.format(brand=safe_brand, primary_url=safe_url, today=today, year=year),
+                    _PRIVACY_TEMPLATE.format(brand=safe_brand, primary_url=safe_url, today=today, year=year, hub=_html.escape(public_origin())),
                     mimetype='text/html',
                 )
         else:
             @app.route('/privacy')
             def _privacy():
-                return redirect(f'{_HUB}/privacy', code=301)
+                return redirect(f'{public_origin()}/privacy', code=301)
 
     if not any(r.rule == '/terms' for r in app.url_map.iter_rules()):
         if _is_hub:
             @app.route('/terms')
             def _terms():
                 return Response(
-                    _TERMS_TEMPLATE.format(brand=safe_brand, primary_url=safe_url, today=today, year=year),
+                    _TERMS_TEMPLATE.format(brand=safe_brand, primary_url=safe_url, today=today, year=year, hub=_html.escape(public_origin())),
                     mimetype='text/html',
                 )
         else:
             @app.route('/terms')
             def _terms():
-                return redirect(f'{_HUB}/terms', code=301)
+                return redirect(f'{public_origin()}/terms', code=301)

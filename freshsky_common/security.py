@@ -7,6 +7,8 @@ from typing import Optional
 
 from flask import request
 
+from .public_identity import CANONICAL_ORIGIN, public_origin
+
 
 DEFAULT_CSP = (
     "default-src 'self'; "
@@ -16,18 +18,18 @@ DEFAULT_CSP = (
     # because these apps never render unsanitized user-supplied HTML.
     # googletagmanager.com is the GA4 loader; google-analytics.com is the
     # collection endpoint that gtag.js fetches.
-    # www.freshskyai.com is whitelisted so the portfolio-wide AI Planner
-    # widget script (served at https://www.freshskyai.com/static/planner.js)
+    # freshskyllc.org is whitelisted so the portfolio-wide AI Planner
+    # widget script (served at https://freshskyllc.org/static/planner.js)
     # can load on every sub-app and its API fetches don't get blocked.
     "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com "
     "https://www.googletagmanager.com https://www.google-analytics.com "
-    "https://www.freshskyai.com; "
+    "https://freshskyllc.org; "
     "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
     "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
     "img-src 'self' data: https:; "
     # connect-src needs google-analytics so gtag.js can POST events;
-    # www.freshskyai.com for the Planner's /api/planner cross-origin fetch.
-    "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.freshskyai.com; "
+    # freshskyllc.org for the Planner's /api/planner cross-origin fetch.
+    "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://freshskyllc.org; "
     "frame-ancestors 'none'; "
     "object-src 'none'; "
     "base-uri 'self'; "
@@ -47,6 +49,9 @@ def install_security_headers(
     override the default.
     """
 
+    # Validate at startup, but choose public links for each exact request host.
+    public_origin()
+
     @app.after_request
     def _add_headers(resp):
         resp.headers.setdefault("X-Content-Type-Options", "nosniff")
@@ -61,7 +66,8 @@ def install_security_headers(
             "geolocation=(), microphone=(), camera=(), browsing-topics=()",
         )
         if csp:
-            resp.headers.setdefault("Content-Security-Policy", csp)
+            resp.headers.setdefault("Content-Security-Policy",
+                                    csp.replace(CANONICAL_ORIGIN, public_origin()) if csp == DEFAULT_CSP else csp)
         # Every production FreshSky surface is HTTPS-only. Setting HSTS
         # unconditionally also covers managed proxies that terminate TLS
         # before Flask and therefore report request.is_secure as false.
@@ -81,7 +87,7 @@ def install_security_headers(
     # aren't text/html, that don't have a </body>, or that already have
     # the marker.
     _PLANNER_SCRIPT = (
-        '<script src="https://www.freshskyai.com/static/planner.js" defer '
+        '<script src="https://freshskyllc.org/static/planner.js" defer '
         'id="fs-planner-loader"></script>'
     )
 
@@ -98,7 +104,7 @@ def install_security_headers(
             return resp
         if "fs-planner-loader" in body or "</body>" not in body:
             return resp
-        resp.set_data(body.replace("</body>", _PLANNER_SCRIPT + "</body>", 1))
+        resp.set_data(body.replace("</body>", _PLANNER_SCRIPT.replace(CANONICAL_ORIGIN, public_origin()) + "</body>", 1))
         return resp
 
     return app

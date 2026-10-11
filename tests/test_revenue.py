@@ -88,7 +88,7 @@ def test_visual_only_install_adds_no_routes_or_named_cross_promotion():
     assert "--fs-bg:#050816" in app.test_client().get("/").text
     assert app.test_client().get("/robots.txt").status_code == 404
     promo = cross_promo_html("foia", "legal")
-    assert "Fresh Sky AI catalog" in promo
+    assert "Explore Fresh Sky" in promo
     assert "Small Claims" not in promo
 
 
@@ -97,7 +97,7 @@ def test_trust_line_exposes_shared_privacy_terms_and_contact_paths():
 
     assert 'href="/privacy"' in line
     assert 'href="/terms"' in line
-    assert 'href="https://www.freshskyai.com/contact"' in line
+    assert 'href="https://freshskyllc.org/contact"' in line
     assert 'target="_blank" rel="noopener"' in line
 
 

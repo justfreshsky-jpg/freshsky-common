@@ -13,6 +13,7 @@ from typing import Optional
 from flask import Flask, Response, jsonify
 
 from .brand import BRAND_CSS_VERSION, install_brand_assets
+from .public_identity import public_origin
 
 # ─── CATEGORIES ───────────────────────────────────────────
 # Each app declares its category at install time. Used by cross-promo,
@@ -119,8 +120,8 @@ _CATEGORY_APP_TYPE = {
 }
 
 
-# ─── PORTFOLIO MAP — used by cross_promo for in-portfolio cross-linking ────
-# Update when a new batch app launches or an existing one retires/renames.
+# Historical compatibility data only. Public cross-promotion uses the central
+# company site below; this list does not establish product availability.
 PORTFOLIO = [
     {'slug': 'eslparentadvocate',   'brand': 'ESL Parent Advocate',   'url': 'https://esl.freshskyai.com/',          'category': 'education'},
     {'slug': 'smallclaimsus',       'brand': 'Small Claims US',       'url': 'https://claims.freshskyai.com/',       'category': 'legal'},
@@ -356,7 +357,7 @@ def trust_line_html(category: str, slug: str = '') -> str:
         f'{body}<br>'
         '<a href="/privacy">Privacy</a> &middot; '
         '<a href="/terms">Terms</a> &middot; '
-        '<a href="https://www.freshskyai.com/contact" target="_blank" '
+        f'<a href="{public_origin()}/contact" target="_blank" '
         'rel="noopener">Contact</a></p>'
     )
 
@@ -370,11 +371,11 @@ def cross_promo_html(current_slug: str, current_category: str, count: int = 3) -
     del current_slug, current_category, count
     return (
         '<section class="fs-catalog-link" style="max-width:720px;margin:32px auto 16px;padding:0 16px;text-align:center">'
-        '<a href="https://www.freshskyai.com/hub" target="_blank" rel="noopener" '
+        f'<a href="{public_origin()}/" target="_blank" rel="noopener" '
         'style="display:inline-flex;min-height:44px;align-items:center;padding:10px 14px;'
         'border:1px solid rgba(94,231,247,.28);border-radius:999px;background:rgba(94,231,247,.08);'
         'text-decoration:none;color:#5ee7f7;font-weight:700;font-size:13px">'
-        'Return to the Fresh Sky AI catalog</a>'
+        'Explore Fresh Sky</a>'
         '</section>'
     )
 
@@ -388,19 +389,19 @@ def og_snippet(brand: str, primary_url: str, description: str = '') -> str:
     app that renders {{ og_tags|safe }} gets consistent, accessible styling
     without duplicating it in each repository. App-specific styles remain the
     base and this layer only normalizes shared surfaces and controls."""
-    desc = description or f'Part of the Fresh Sky AI portfolio — AI tools built under the HULEC rule.'
+    desc = description or 'Practical tools from Fresh Sky LLC.'
     url = primary_url.rstrip('/')
     return (
         f'<meta property="og:title" content="{brand}">\n'
         f'<meta property="og:description" content="{desc}">\n'
         f'<meta property="og:url" content="{url}">\n'
         f'<meta property="og:type" content="website">\n'
-        f'<meta property="og:site_name" content="Fresh Sky AI">\n'
-        f'<meta property="og:image" content="https://freshskyai.com/og-image.png">\n'
+        f'<meta property="og:site_name" content="Fresh Sky">\n'
+        f'<meta property="og:image" content="{public_origin()}/og-image.png">\n'
         f'<meta name="twitter:card" content="summary_large_image">\n'
         f'<meta name="twitter:title" content="{brand}">\n'
         f'<meta name="twitter:description" content="{desc}">\n'
-        f'<meta name="twitter:image" content="https://freshskyai.com/og-image.png">\n'
+        f'<meta name="twitter:image" content="{public_origin()}/og-image.png">\n'
         + _PORTFOLIO_SKIN_CSS
         + f'<link rel="stylesheet" href="/freshsky.css?v={BRAND_CSS_VERSION}">\n'
     )
@@ -530,7 +531,7 @@ def schema_snippet(
         'provider': {
             '@type': 'Organization',
             'name': 'Fresh Sky LLC',
-            'url': 'https://www.freshskyai.com',
+            'url': public_origin(),
         },
         'inLanguage': ['en', 'es', 'zh', 'ar', 'vi', 'tl', 'ko', 'ru', 'pt', 'hi', 'fr', 'tr'],
     }
