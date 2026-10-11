@@ -1,4 +1,4 @@
-/* Shared Fresh Sky AI free-access UI. */
+/* Shared Fresh Sky free-access UI. */
 (function() {
   if (window.__freemiumLoaded) return;
   window.__freemiumLoaded = true;
@@ -47,7 +47,7 @@
   }
 
   function communityLink() {
-    return '<a href="https://www.freshskyai.com/#why" target="_blank" rel="noopener" ' +
+    return '<a href="https://freshskyllc.org/#why" target="_blank" rel="noopener" ' +
       'class="fs-access-link">HULEC operating standard</a>';
   }
 
@@ -97,7 +97,7 @@
     }
 
     var host = (window.location && window.location.host || '').toLowerCase();
-    var mainCatalog = host === 'www.freshskyai.com' || host === 'freshskyai.com';
+    var mainCatalog = host === 'freshskyllc.org' || host === 'www.freshskyllc.org' || host === 'www.freshskyai.com' || host === 'freshskyai.com';
     var access = STATE.subscription_enabled
       ? (STATE.full_access
           ? '<span class="fs-access-state" data-active="true">Plan active</span>'
@@ -120,7 +120,7 @@
 
     bar.innerHTML =
       '<div class="fs-access-shell">' +
-        '<a class="fs-access-brand" href="https://www.freshskyai.com/" ' +
+        '<a class="fs-access-brand" href="https://freshskyllc.org/" ' +
           'target="_blank" rel="noopener">Fresh Sky AI</a>' +
         '<div class="fs-access-actions">' + user + access + action + account + '</div>' +
       '</div>';
@@ -180,7 +180,7 @@
   function mountHubMark() {
     try {
       var host = (window.location && window.location.host || '').toLowerCase();
-      if (host === 'www.freshskyai.com' || host === 'freshskyai.com') return;
+      if (host === 'freshskyllc.org' || host === 'www.freshskyllc.org' || host === 'www.freshskyai.com' || host === 'freshskyai.com') return;
       if (document.body && document.body.hasAttribute('data-fs-no-hub-mark')) return;
       if (document.getElementById('fs-hub-mark')) return;
       var mark = document.createElement('div');
@@ -193,7 +193,7 @@
           'HULEC operating standard: transparent monthly pricing, no hidden fees, no interest-based financing, no gambling mechanics, and no sale of prompt data. ' +
           (STATE.subscription_enabled
             ? '<a href="/subscribe" data-fs-event="subscription_clicked">View this app&rsquo;s monthly plan</a>'
-            : '<a href="https://www.freshskyai.com/#why" target="_blank" rel="noopener">Read the HULEC standard</a>') +
+            : '<a href="https://freshskyllc.org/#why" target="_blank" rel="noopener">Read the HULEC standard</a>') +
         '</div>';
       document.body.appendChild(mark);
     } catch (e) {}

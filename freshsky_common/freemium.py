@@ -63,6 +63,7 @@ from .checkout_store import (
     checkout_fingerprint,
 )
 from .stripe_client import build_stripe_api
+from .public_identity import CANONICAL_ORIGIN, HUB_HOSTS, public_origin
 
 
 logger = logging.getLogger(__name__)
@@ -390,7 +391,7 @@ def _consume_paid_allowance(
     meter_url = os.environ.get('FRESHSKY_USAGE_METER_URL', '').strip()
     if not meter_url and service and service != 'freshskyai':
         meter_url = (
-            'https://www.freshskyai.com/internal/paid-usage/consume'
+            f'{public_origin()}/internal/paid-usage/consume'
         )
     if not meter_url:
         return consume_paid_identity(
@@ -1273,11 +1274,9 @@ def register_freemium(
     @app.route('/billing')
     def freemium_billing_portal():
         if not stripe_enabled:
-            if (request.host or '').split(':')[0].lower() in {
-                'freshskyai.com', 'www.freshskyai.com',
-            }:
+            if (request.host or '').split(':')[0].lower() in HUB_HOSTS:
                 return redirect(url_for('index'))
-            return redirect('https://www.freshskyai.com/billing', code=302)
+            return redirect(f'{public_origin()}/billing', code=302)
         if (
             not session.get('user_email')
             or session.get('user_email_verified') is not True
@@ -1347,18 +1346,20 @@ def register_freemium(
     # their own static/ directory.
     import importlib.resources as _ir
 
-    _access_bundle_path = '/freshsky-access-v062.js'
+    _access_bundle_path = '/freshsky-access-v071.js'
 
     def _freemium_js_response():
         try:
             content = (_ir.files('freshsky_common.static') / 'freemium.js').read_text(encoding='utf-8')
         except Exception:
             content = ''
+        content = content.replace(CANONICAL_ORIGIN, public_origin())
         resp = Response(content, mimetype='application/javascript; charset=utf-8')
         resp.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
         return resp
 
-    app.add_url_rule(_access_bundle_path, 'freshsky_access_bundle_v062', _freemium_js_response)
+    app.add_url_rule(_access_bundle_path, 'freshsky_access_bundle_v071', _freemium_js_response)
+    app.add_url_rule('/freshsky-access-v062.js', 'freshsky_access_bundle_v062', _freemium_js_response)
 
     @app.route('/freemium.js')
     def freemium_js():
@@ -1383,7 +1384,7 @@ def register_freemium(
         if _access_bundle_path in body:
             return response
         body = re.sub(
-            r"""src=(["'])/freemium\.js(?:\?[^"']*)?\1""",
+            r"""src=(["'])/(?:freemium|freshsky-access-v062)\.js(?:\?[^"']*)?\1""",
             lambda match: (
                 f"src={match.group(1)}{_access_bundle_path}{match.group(1)}"
             ),

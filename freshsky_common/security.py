@@ -7,6 +7,8 @@ from typing import Optional
 
 from flask import request
 
+from .public_identity import CANONICAL_ORIGIN, public_origin
+
 
 DEFAULT_CSP = (
     "default-src 'self'; "
@@ -16,18 +18,18 @@ DEFAULT_CSP = (
     # because these apps never render unsanitized user-supplied HTML.
     # googletagmanager.com is the GA4 loader; google-analytics.com is the
     # collection endpoint that gtag.js fetches.
-    # www.freshskyai.com is whitelisted so the portfolio-wide AI Planner
-    # widget script (served at https://www.freshskyai.com/static/planner.js)
+    # freshskyllc.org is whitelisted so the portfolio-wide AI Planner
+    # widget script (served at https://freshskyllc.org/static/planner.js)
     # can load on every sub-app and its API fetches don't get blocked.
     "script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com "
     "https://www.googletagmanager.com https://www.google-analytics.com "
-    "https://www.freshskyai.com; "
+    "https://freshskyllc.org; "
     "style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; "
     "font-src 'self' https://cdnjs.cloudflare.com https://fonts.gstatic.com; "
     "img-src 'self' data: https:; "
     # connect-src needs google-analytics so gtag.js can POST events;
-    # www.freshskyai.com for the Planner's /api/planner cross-origin fetch.
-    "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://www.freshskyai.com; "
+    # freshskyllc.org for the Planner's /api/planner cross-origin fetch.
+    "connect-src 'self' https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com https://freshskyllc.org; "
     "frame-ancestors 'none'; "
     "object-src 'none'; "
     "base-uri 'self'; "
@@ -46,6 +48,9 @@ def install_security_headers(
     Pass ``csp=None`` to skip Content-Security-Policy, or a custom string to
     override the default.
     """
+
+    if csp == DEFAULT_CSP:
+        csp = DEFAULT_CSP.replace(CANONICAL_ORIGIN, public_origin())
 
     @app.after_request
     def _add_headers(resp):
@@ -81,9 +86,9 @@ def install_security_headers(
     # aren't text/html, that don't have a </body>, or that already have
     # the marker.
     _PLANNER_SCRIPT = (
-        '<script src="https://www.freshskyai.com/static/planner.js" defer '
+        '<script src="https://freshskyllc.org/static/planner.js" defer '
         'id="fs-planner-loader"></script>'
-    )
+    ).replace(CANONICAL_ORIGIN, public_origin())
 
     @app.after_request
     def _inject_planner(resp):
