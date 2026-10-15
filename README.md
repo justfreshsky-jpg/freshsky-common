@@ -4,9 +4,12 @@ Shared infrastructure for Fresh Sky LLC apps.
 
 ## Modules
 
-- `llm` — Multi-provider fallback. Mistral requires a confirmed training opt-out, and OpenRouter requests both no data collection and zero retention.
-- `privacy` — Fail-closed education controls. `LLMChain(privacy_profile="education_deidentified")` rejects likely student identifiers before network calls and permits only Cloudflare, Ollama, Cerebras, confirmed-ZDR Groq, and SambaNova.
-- `us_public` — Portfolio-wide public profile. `LLMChain(privacy_profile="us_public")` uses the same restricted U.S. provider pool and rejects likely personal identifiers before network calls.
+- `llm` — Free-only text inference. Unverified accounts, paid providers, quota
+  exhaustion and unsupported requests return unavailable; there is no paid fallback.
+- `ai_cost_policy` — Exact endpoint/model, current account evidence, credential
+  binding, input and output bounds, and privacy checks before network I/O.
+- `privacy` — Additional identifier checks for public and education inputs.
+  These checks do not establish that arbitrary input is non-sensitive.
 - `security` — Security headers + input sanitization + LLM output cleaning.
 - `caching` — Bounded LRU response cache with TTL.
 - `rate_limit` — Per-IP token-bucket rate limiter (Flask decorator).
@@ -59,6 +62,8 @@ def ask():
     if cached:
         return {"result": cached}
     text = chain.complete(system="You are an expert.", user=user)
+    if not text:
+        return {"code": "ai_unavailable", "no_usage_charge": True}, 503
     out = clean_ai_text(text)
     cache.set(key, out)
     metrics.incr("requests", "ask")
@@ -100,7 +105,9 @@ days and cannot run agent workflows or save server-side projects. Focus covers
 one server-saved non-civic workspace; Civic covers CivicOps; Plus covers
 Education, Action Packs, and Utilities; Advanced covers all five. The exact
 verified owner identity has all five workspaces but remains finite at 500
-units/day, 2,000/month, and $5/month of AI-provider cost.
+units/day and 2,000/month. The legacy $5/month provider ceiling remains a
+historical entitlement backstop, not spending authority: every current workflow
+has a zero-dollar provider-cost reservation and positive charges are rejected.
 
 Reserve the entire workflow before starting it and reconcile the maximum
 provider-cost reservation to actual cost afterward:
@@ -166,9 +173,51 @@ missing inputs, artifact references, required approval, approver, and audit
 timestamps. These are validated fields rather than conventions hidden in
 `metadata`.
 
-Set `GROQ_ZDR_CONFIRMED=true` only after enabling Zero Data Retention on the
-Groq account. Set `MISTRAL_TRAINING_OPTOUT_CONFIRMED=true` only after disabling
-anonymous improvement data; Mistral remains excluded from the education profile.
+## Free-only inference (0.8.0)
+
+No provider is enabled by default. Existing keys, old provider lists, privacy
+flags or a free model name alone do not authorize calls. Only the exact Groq
+text endpoint and reviewed `openai/gpt-oss-20b` / `openai/gpt-oss-120b` models
+can pass the current gate. Other adapter implementations remain compatibility
+code and are blocked before network I/O, including Vertex credential refresh.
+Redirects and automatic paid fallback are disabled. A chain makes at most one
+approved Groq attempt. Quota exhaustion or an empty response is unavailable,
+not a completed AI task; keep deterministic/manual functions available.
+
+Before enabling inference, verify the actual account is on the free plan with
+no billable overage, paid credits or automatic upgrade, review commercial and
+privacy terms, and enable Zero Data Retention. Set `GROQ_ZDR_CONFIRMED=true`
+only after verified account readback. Provide `GROQ_API_KEY` through the existing
+secret mechanism and mount a private JSON record outside source control using
+`FRESHSKY_FREE_AI_VERIFICATION_FILE` (absolute path). Its fields are:
+
+- `schema_version`: integer 1; `provider`: `groq`; `plan`: `free`.
+- `account_id`: the verified provider account identifier.
+- `no_billable_overage`, `commercial_use_reviewed`, `privacy_reviewed`,
+  `non_sensitive_only`: true; `automatic_upgrade`, `paid_credits`: false.
+- `credential_sha256`: digest of the exact configured key, never the key itself.
+- `evidence_sha256`: digest of the private dated verification evidence.
+- `verified_at`, `expires_at`: timezone-aware timestamps, at most 24 hours apart.
+- `models`: a nonempty subset of the two reviewed model IDs above.
+
+This record is an operator attestation, not a provider billing guarantee.
+Do not auto-renew it or infer its contents from old evidence. Missing, expired,
+malformed, rotated-key or incompatible records fail closed. Never commit a real
+record, credential, account export or customer input. Unsupported values of
+`FRESHSKY_AI_COST_POLICY` also fail closed; there is no paid-mode override.
+
+Only public, synthetic or independently verified non-sensitive text is eligible:
+up to 12,000 combined input characters, 2,000 output tokens, and no native tool
+calls, files, images or remote execution. Pattern-based identifier rejection is
+an additional safeguard, not anonymization or permission to send private data.
+Provider terms and free quotas may change; account evidence must remain current.
+
+These controls cover calls through this package. Consumers must remove direct
+SDK/HTTP bypasses and pin the reviewed commit. Source publication alone does not
+change running services. Existing records, exports and entitlements remain;
+`AgentRun` can still validate bounded historical cost records without authorizing
+new spending. Existing hosting/domain/email costs are separate from inference.
+
 
 ## Adoption
 

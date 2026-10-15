@@ -6,6 +6,16 @@ from freshsky_common import llm
 from freshsky_common.metrics import Metrics
 
 
+@pytest.fixture(autouse=True)
+def isolate_legacy_transport_contracts(monkeypatch):
+    # These tests exercise historical adapter wire formats only. The real,
+    # default-deny cost boundary is exercised without these stubs in
+    # test_ai_cost_policy.py. No runtime opt-out exists.
+    monkeypatch.setattr(llm, "free_call_allowed", lambda *args: True)
+    monkeypatch.setattr(llm, "_adapter_allowed", lambda fn: True)
+    monkeypatch.setattr(llm, "ai_availability", lambda: {"available": True})
+
+
 class FakeResponse:
     def __init__(self, payload, status_code=200):
         self._payload = payload
@@ -26,7 +36,7 @@ class FakeCredentials:
 def test_vertex_uses_iam_and_gemini_flash_lite(monkeypatch):
     calls = []
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, allow_redirects=False):
         calls.append((url, headers, json))
         return FakeResponse(
             {"candidates": [{"content": {"parts": [{"text": "answer"}]}}]}
@@ -86,7 +96,7 @@ def test_vertex_failure_falls_back_without_prompt_logging(monkeypatch):
 def test_openrouter_defaults_to_free_denies_collection_and_requires_zdr(monkeypatch):
     payloads = []
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, allow_redirects=False):
         payloads.append(json)
         return FakeResponse({"choices": [{"message": {"content": "answer"}}]})
 
@@ -118,7 +128,7 @@ def test_mistral_requires_training_optout_confirmation(monkeypatch):
 def test_legacy_batch_secret_names_remain_supported(monkeypatch):
     calls = []
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, allow_redirects=False):
         calls.append((url, headers, json))
         return FakeResponse(
             {"choices": [{"message": {"content": "legacy secret answer"}}]}
@@ -135,7 +145,7 @@ def test_legacy_batch_secret_names_remain_supported(monkeypatch):
 def test_huggingface_uses_current_chat_router(monkeypatch):
     urls = []
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, allow_redirects=False):
         urls.append(url)
         return FakeResponse({"choices": [{"message": {"content": "answer"}}]})
 
@@ -149,7 +159,7 @@ def test_huggingface_uses_current_chat_router(monkeypatch):
 def test_ollama_uses_commercial_model_and_native_response(monkeypatch):
     calls = []
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, allow_redirects=False):
         calls.append((url, headers, json))
         return FakeResponse({"message": {"role": "assistant", "content": "answer"}})
 
@@ -243,7 +253,7 @@ def test_us_public_profile_uses_restricted_providers_and_rejects_pii(monkeypatch
 def test_provider_uses_reviewed_registry_default(monkeypatch):
     payloads = []
 
-    def fake_post(url, headers=None, json=None, timeout=None):
+    def fake_post(url, headers=None, json=None, timeout=None, allow_redirects=False):
         payloads.append(json)
         return FakeResponse({"choices": [{"message": {"content": "answer"}}]})
 

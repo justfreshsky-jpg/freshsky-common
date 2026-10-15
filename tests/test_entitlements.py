@@ -139,7 +139,7 @@ def test_workflow_weights_and_hard_ceilings_are_canonical():
             "max_fan_out": 1,
             "max_total_tokens": 4_000,
             "max_elapsed_seconds": 30,
-            "max_provider_cost_usd": "0.005",
+            "max_provider_cost_usd": "0",
         },
         "standard_agent": {
             "usage_units": 5,
@@ -147,7 +147,7 @@ def test_workflow_weights_and_hard_ceilings_are_canonical():
             "max_fan_out": 4,
             "max_total_tokens": 12_000,
             "max_elapsed_seconds": 45,
-            "max_provider_cost_usd": "0.025",
+            "max_provider_cost_usd": "0",
         },
         "bounded_agent": {
             "usage_units": 10,
@@ -155,7 +155,7 @@ def test_workflow_weights_and_hard_ceilings_are_canonical():
             "max_fan_out": 8,
             "max_total_tokens": 24_000,
             "max_elapsed_seconds": 90,
-            "max_provider_cost_usd": "0.05",
+            "max_provider_cost_usd": "0",
         },
         "full_funding_scan": {
             "usage_units": 20,
@@ -163,7 +163,7 @@ def test_workflow_weights_and_hard_ceilings_are_canonical():
             "max_fan_out": 12,
             "max_total_tokens": 40_000,
             "max_elapsed_seconds": 120,
-            "max_provider_cost_usd": "0.10",
+            "max_provider_cost_usd": "0",
         },
     }
 
@@ -237,7 +237,7 @@ def test_quota_rejects_workspace_workflow_and_provider_cost_before_start():
         workspace="funding",
         workflow="full_funding_scan",
         usage=UsageSnapshot(
-            monthly_provider_cost_usd=Decimal("4.91")
+            monthly_provider_cost_usd=Decimal("5.01")
         ),
         now=NOW,
     )
@@ -296,19 +296,19 @@ def test_ledger_reserves_max_cost_then_reconciles_actual_cost_idempotently():
     before = ledger.usage_snapshot("owner-pseudonym", now=NOW)
     first = ledger.reconcile(
         reservation,
-        actual_provider_cost_usd="0.012",
+        actual_provider_cost_usd="0",
     )
     second = ledger.reconcile(
         reservation,
-        actual_provider_cost_usd=Decimal("0.012"),
+        actual_provider_cost_usd=Decimal("0"),
     )
     after = ledger.usage_snapshot("owner-pseudonym", now=NOW)
 
     assert before.monthly_units == 10
-    assert before.monthly_provider_cost_usd == Decimal("0.05")
+    assert before.monthly_provider_cost_usd == Decimal("0")
     assert first == second
-    assert first.released_provider_cost_usd == Decimal("0.038")
-    assert after.monthly_provider_cost_usd == Decimal("0.012")
+    assert first.released_provider_cost_usd == Decimal("0")
+    assert after.monthly_provider_cost_usd == Decimal("0")
     with pytest.raises(PolicyValidationError):
         ledger.reconcile(
             reservation,

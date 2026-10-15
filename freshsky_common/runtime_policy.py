@@ -93,8 +93,6 @@ class WorkflowBudget:
             self.max_provider_cost_usd,
             field_name="max_provider_cost_usd",
         )
-        if parsed_cost <= 0:
-            raise PolicyValidationError("max_provider_cost_usd must be positive")
         object.__setattr__(self, "max_provider_cost_usd", parsed_cost)
 
     @property
@@ -163,28 +161,28 @@ WORKFLOW_BUDGETS: Final[Mapping[WorkflowClass, WorkflowBudget]] = MappingProxyTy
             max_provider_calls=1,
             max_total_tokens=4_000,
             max_elapsed_seconds=30,
-            max_provider_cost_usd=Decimal("0.005"),
+            max_provider_cost_usd=Decimal("0"),
         ),
         WorkflowClass.STANDARD_AGENT: WorkflowBudget(
             usage_units=5,
             max_provider_calls=4,
             max_total_tokens=12_000,
             max_elapsed_seconds=45,
-            max_provider_cost_usd=Decimal("0.025"),
+            max_provider_cost_usd=Decimal("0"),
         ),
         WorkflowClass.BOUNDED_AGENT: WorkflowBudget(
             usage_units=10,
             max_provider_calls=8,
             max_total_tokens=24_000,
             max_elapsed_seconds=90,
-            max_provider_cost_usd=Decimal("0.05"),
+            max_provider_cost_usd=Decimal("0"),
         ),
         WorkflowClass.FULL_FUNDING_SCAN: WorkflowBudget(
             usage_units=20,
             max_provider_calls=12,
             max_total_tokens=40_000,
             max_elapsed_seconds=120,
-            max_provider_cost_usd=Decimal("0.10"),
+            max_provider_cost_usd=Decimal("0"),
         ),
     }
 )

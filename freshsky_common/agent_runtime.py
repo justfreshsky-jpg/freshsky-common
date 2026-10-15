@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from enum import Enum
@@ -391,7 +391,12 @@ class AgentRun:
             self.elapsed_seconds, bool
         ):
             raise PolicyValidationError("elapsed_seconds must be numeric")
-        budget.validate_usage(
+        # AgentRun is an audit envelope, including historical paid records.
+        # Preserve their readability; this must never authorize new work.
+        # Live reservations use the zero-cost workflow budget and transport gate.
+        historical_cap = {"preview": "0.005", "standard_agent": "0.025",
+                          "bounded_agent": "0.05", "full_funding_scan": "0.10"}[workflow.value]
+        replace(budget, max_provider_cost_usd=Decimal(historical_cap)).validate_usage(
             provider_calls=self.provider_calls,
             total_tokens=self.input_tokens + self.output_tokens,
             elapsed_seconds=float(self.elapsed_seconds),

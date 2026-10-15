@@ -1,8 +1,8 @@
 """Privacy + Terms boilerplate routes for Fresh Sky AI apps.
 
 Every app that calls revenue.install(...) gets /privacy and /terms
-auto-registered with sensible defaults: no PII storage claim, AI-content
-disclaimer, contact pointer to the hub, last-updated stamp.
+auto-registered with conservative fallback copy, an AI-content disclaimer,
+and a contact pointer to the hub. Application-specific practices need review.
 """
 from __future__ import annotations
 
@@ -32,39 +32,21 @@ _PRIVACY_TEMPLATE = """<!DOCTYPE html>
 <h1>Privacy Policy</h1>
 <p class="meta">Last updated {today}. Applies to {brand} ({primary_url}).</p>
 
-<h2>What we collect</h2>
-<p>We try hard to collect as little as possible. Specifically:</p>
-<ul>
-  <li><strong>What you type into the tool.</strong> Your input is sent to the currently approved Fresh Sky AI provider pool, such as Cloudflare Workers AI, Ollama Cloud, Cerebras, SambaNova, or Groq only when zero-data-retention terms are confirmed. We do not store this input on our servers, and we do not associate it with you.</li>
-  <li><strong>A session cookie.</strong> Used only to remember preferences and sign-in state. It expires when you close your browser.</li>
-  <li><strong>Standard server logs.</strong> Cloud Run records request paths, status codes, IP address, and timestamps for security and debugging. These rotate automatically and are never tied to your input or output.</li>
-  <li><strong>Anonymous analytics.</strong> Google Analytics 4 tracks page views and basic interactions to help us understand which tools are useful. IPs are anonymized; we do not store any personally identifiable information.</li>
-</ul>
+<h2>Inputs and AI processing</h2>
+<p>Use only public, synthetic or verified non-sensitive information. Do not enter student records, medical records, account numbers, private documents or other sensitive information. Automated checks cannot reliably remove all identifying information.</p>
+<p>AI text processing, when enabled, uses Groq only after a current account and privacy review. The provider receives the submitted text and system instructions. Its privacy, retention and abuse-prevention terms apply. If the approved service is unavailable, the tool reports that result; available deterministic and manual functions can still be used.</p>
 
-<h2>What we don't collect</h2>
-<ul>
-  <li>No account or sign-in is required for basic use.</li>
-  <li>No name, address, phone, SSN, or government ID — never ask for them; the AI is told not to need them.</li>
-  <li>No tracking pixels, no advertising cookies, no data sharing with advertisers.</li>
-  <li>No record of what you typed or what the AI replied — once the response is sent back to you, it's gone from our side.</li>
-</ul>
-
-<h2>What the AI sees</h2>
-<p>The approved AI providers above receive your input to generate a reply. Each has its own privacy, retention, and abuse-prevention terms. Do not enter Social Security numbers, account numbers, student records, medical records, or other sensitive personal information.</p>
+<h2>Accounts and operational records</h2>
+<p>Enabled account features may use cookies and retain account, access, usage, billing or support records. Hosting systems may record request metadata for operation and security. Do not assume that closing the page deletes these records. Application-specific notices describe additional storage and optional services.</p>
 
 <h2>Third parties</h2>
-<ul>
-  <li><strong>Hosting:</strong> Google Cloud Run (US data centers).</li>
-  <li><strong>DNS:</strong> Namecheap.</li>
-  <li><strong>Analytics:</strong> Google Analytics 4 (anonymized).</li>
-  <li><strong>Affiliate links:</strong> when present, are clearly disclosed and do not set tracking cookies until you click.</li>
-</ul>
+<p>Fresh Sky uses service providers for hosting, domain services and enabled account or payment features. A tool may link to third-party sites, whose own terms apply. We do not claim that anonymous analytics or zero retention applies to every record or third party.</p>
 
 <h2>Children</h2>
-<p>This tool is intended for adults (or the parents/guardians of children). We do not knowingly collect data from anyone under 13. If you believe a child has used the tool, contact us and we'll delete what we can.</p>
+<p>These tools are intended for adults. Do not submit children's personal information. Contact us if you believe such information was submitted.</p>
 
-<h2>Your rights</h2>
-<p>Because we don't collect personal information, there's nothing to delete or export. If you have a question about a specific request you made, or you believe we've made a mistake, contact us via the hub: <a href="{hub}/contact">freshskyllc.org/contact</a>.</p>
+<h2>Questions and requests</h2>
+<p>For privacy, correction, export or deletion requests, contact <a href="{hub}/contact">Fresh Sky LLC</a>. The applicable records, legal obligations and technical limits determine what can be provided or removed.</p>
 
 <h2>Changes</h2>
 <p>If this policy changes meaningfully, we'll update the date at the top. We'll never quietly start collecting more.</p>
@@ -93,24 +75,24 @@ _TERMS_TEMPLATE = """<!DOCTYPE html>
 <p class="meta">Last updated {today}. Applies to {brand} ({primary_url}).</p>
 
 <h2>What this is</h2>
-<p>{brand} is an AI-assisted educational tool from Fresh Sky LLC. It generates plain-language answers based on what you type in. It is <strong>not legal, tax, medical, or professional advice</strong>. It will sometimes be wrong. Verify anything important with the actual agency, an attorney, or a licensed professional before acting on it.</p>
+<p>{brand} is an AI-assisted educational tool from Fresh Sky LLC. AI assistance may be unavailable. Deterministic functions and any enabled AI features are described by the tool. It is <strong>not legal, tax, medical, or professional advice</strong>. It will sometimes be wrong. Verify anything important with the actual agency, an attorney, or a licensed professional before acting on it.</p>
 
-<h2>Use it however you want, within reason</h2>
-<p>You can use this tool for personal, educational, or commercial purposes — no permission needed. What we ask:</p>
+<h2>Permitted use</h2>
+<p>Use the tool only for lawful activities, with the necessary rights and permissions. In particular:</p>
 <ul>
   <li>Don't try to break it, scrape it at scale, or use it to abuse the AI providers behind it.</li>
   <li>Don't input data that isn't yours (someone else's medical records, private communications, etc.).</li>
-  <li>Don't use it to generate content that's illegal where you are.</li>
+  <li>Don't use it for illegal activity, fraud, fabricated evidence, impersonation or unauthorized access.</li>
 </ul>
 
 <h2>The output is yours</h2>
-<p>Whatever the AI generates in response to your input, you can use, modify, or share. We don't claim copyright over generated content. We can't promise it's accurate or that it doesn't accidentally resemble copyrighted material — review it before publishing or filing it anywhere.</p>
+<p>We do not claim ownership of your inputs or generated output. Your use must respect applicable law, third-party rights and provider terms. Output may be inaccurate or resemble existing material; review it before sharing or using it.</p>
 
 <h2>No guarantees</h2>
 <p>The tool is provided "as is." We make no warranty about uptime, accuracy, completeness, or fitness for any particular purpose. If the tool is wrong, breaks, or is unavailable when you need it, we're not liable for the consequences. To the maximum extent allowed by law, our total liability for free tool access is capped at zero.</p>
 
 <h2>Cost</h2>
-<p>Fresh Sky AI tools include a limited preview allowance. Continued AI use requires the monthly plan displayed by the tool. Civic-volunteer tools use a discounted Civic plan. Provider safety controls and anti-abuse protections may still temporarily restrict harmful or automated use.</p>
+<p>Access and existing entitlements depend on the relevant tool and account. New purchases are not available unless explicitly enabled and displayed. Automation services are quoted after workflow review. Availability, provider quotas and anti-abuse controls may restrict AI features; paying for an entitlement does not bypass these controls.</p>
 
 <h2>Changes</h2>
 <p>We may update these terms. Continuing to use the tool after a change means you accept the new version. The date at the top tells you when the current version was published.</p>
