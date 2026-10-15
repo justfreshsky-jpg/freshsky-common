@@ -19,6 +19,7 @@ from google.auth.transport.requests import Request as GoogleAuthRequest
 import requests
 
 from .metrics import Metrics
+from .ai_cost_policy import ai_availability, free_call_allowed
 from .privacy import (
     EDUCATION_PRIVACY_PROFILE,
     US_PUBLIC_PRIVACY_PROFILE,
@@ -101,13 +102,14 @@ def _privacy_profile(value: Optional[str] = None) -> Optional[str]:
 
 def configured_providers(privacy_profile: Optional[str] = None) -> list[str]:
     """Return configured provider names without exposing credentials."""
+    if not ai_availability()["available"]:
+        return []
     configured = [
         provider
         for provider, requirements in _PROVIDER_ENV_REQUIREMENTS.items()
         if all(any(os.environ.get(name) for name in aliases) for aliases in requirements)
     ]
-    if _vertex_configured():
-        configured.insert(0, "vertex")
+    configured = [name for name in configured if name == "groq"]
     profile = _privacy_profile(privacy_profile)
     if profile in {EDUCATION_PRIVACY_PROFILE, US_PUBLIC_PRIVACY_PROFILE}:
         allowed = {"vertex", "cloudflare", "ollama", "cerebras", "sambanova"}
@@ -172,9 +174,15 @@ def _http_post(
     payload: dict,
     timeout: int = 30,
 ) -> Optional[str]:
+    if not free_call_allowed(provider, url, headers, payload):
+        _record(provider, "cost_policy_blocked")
+        return None
     _record(provider, "attempts")
     try:
-        r = requests.post(url, headers=headers, json=payload, timeout=timeout)
+        r = requests.post(url, headers=headers, json=payload, timeout=timeout, allow_redirects=False)
+        if 300 <= r.status_code < 400:
+            _record(provider, "redirect_blocked")
+            return None
         if r.status_code >= 400:
             category = _failure_category(r.status_code)
             _record(provider, "failures")
@@ -261,7 +269,7 @@ def _vertex_content(raw: Optional[str]) -> Optional[str]:
 
 def _via_vertex(system: str, user: str) -> Optional[str]:
     """Use IAM-authenticated Vertex AI when explicitly enabled."""
-    if not _vertex_configured():
+    if not _adapter_allowed(_via_vertex) or not _vertex_configured():
         return None
     project = os.environ["GOOGLE_CLOUD_PROJECT"].strip()
     location = os.environ.get("VERTEX_AI_LOCATION", "us-central1").strip()
@@ -532,6 +540,14 @@ US_RESTRICTED_PROVIDERS: List[Callable[[str, str], Optional[str]]] = [
 EDUCATION_PROVIDERS = US_RESTRICTED_PROVIDERS
 
 
+_FREE_ADAPTERS = frozenset({_via_groq, _via_groq_with_confirmed_zdr})
+
+
+def _adapter_allowed(fn) -> bool:
+    # Identity, not a caller-supplied provider name. Unknown adapters cannot run.
+    return any(fn is approved for approved in _FREE_ADAPTERS) and ai_availability()["available"]
+
+
 class LLMChain:
     """Try providers in order, return first non-empty response."""
 
@@ -562,12 +578,17 @@ class LLMChain:
                 "_provider_name",
                 getattr(fn, "__name__", repr(fn)).removeprefix("_via_"),
             )
+            if not _adapter_allowed(fn):
+                _record("_chain", "cost_policy_blocked")
+                continue
+            if attempted and any(fn is approved for approved in _FREE_ADAPTERS):
+                continue  # one verified provider attempt per chain, no retry fan-out
             attempted.append(provider)
             try:
                 text = fn(system, user)
             except Exception:
                 _record(provider, "chain_exceptions")
-                logger.exception("LLM provider %s raised", provider)
+                logger.warning("LLM provider %s raised; exception_type_only", provider)
                 continue
             if text:
                 _record(provider, "selected")
